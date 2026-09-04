@@ -1,0 +1,26 @@
+# Local development and device data
+/work/
+/outputs/
+/.codex-remote-attachments/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+
+# Built programs and packages
+*.exe
+*.apk
+*.ipk
+*.tar.gz
+*.zip
+
+# Local keys and credentials
+*.key
+*.pem
+.env
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

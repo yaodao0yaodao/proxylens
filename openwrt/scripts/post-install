@@ -1,0 +1,15 @@
+#!/bin/sh
+
+if [ ! -e /etc/config/proxylens ]; then
+	mkdir -p /etc/config
+	cp /usr/share/proxylens/proxylens.default /etc/config/proxylens
+fi
+
+if [ -x /etc/init.d/proxylens ]; then
+	/etc/init.d/proxylens enable
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || true
+	/etc/init.d/uhttpd reload >/dev/null 2>&1 || true
+	/etc/init.d/proxylens restart >/dev/null 2>&1 || true
+fi
+
+exit 0

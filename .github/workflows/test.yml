@@ -1,0 +1,27 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - name: Cross-compile supported targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in linux/amd64 linux/arm64; do
+            GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 \
+              go build -trimpath -o /tmp/proxylens-${target#*/} ./cmd/proxylens
+          done

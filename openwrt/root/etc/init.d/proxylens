@@ -1,0 +1,72 @@
+#!/bin/sh /etc/rc.common
+
+START=95
+STOP=10
+USE_PROCD=1
+
+generate_token() {
+	local token
+	token="$(hexdump -n 24 -e '24/1 "%02x"' /dev/urandom 2>/dev/null)"
+	[ -n "$token" ] || token="$(date +%s)-$(awk 'BEGIN{srand(); printf "%08x", rand()*4294967295}')"
+	uci -q set proxylens.main.admin_token="$token"
+	uci -q commit proxylens
+	echo "$token"
+}
+
+start_service() {
+	config_load proxylens
+	local enabled port data_dir database_path public_base_url admin_token max_log_mb max_db_mb sing_box_path manage_sing_box
+	config_get_bool enabled main enabled 0
+	[ "$enabled" -eq 1 ] || return 0
+	config_get port main port 9099
+	config_get data_dir main data_dir /var/lib/proxylens
+	config_get database_path main database_path /etc/proxylens/proxylens.db
+	config_get public_base_url main public_base_url ''
+	config_get admin_token main admin_token ''
+	config_get max_log_mb main max_log_mb 8
+	config_get max_db_mb main max_db_mb 96
+	config_get sing_box_path main sing_box_path /usr/lib/proxylens/sing-box
+	config_get_bool manage_sing_box main manage_sing_box 1
+	[ -n "$admin_token" ] || admin_token="$(generate_token)"
+	mkdir -p "$data_dir"
+	chmod 700 "$data_dir"
+	case "$database_path" in
+		/*) ;;
+		*) logger -t proxylens "database_path must be absolute: $database_path"; return 1 ;;
+	esac
+	local state_file="$data_dir/database-path"
+	local old_database_path="$data_dir/proxylens.db"
+	[ -s "$state_file" ] && read -r old_database_path < "$state_file"
+	if [ "$old_database_path" != "$database_path" ] && [ -e "$old_database_path" ]; then
+		if [ -e "$database_path" ]; then
+			logger -t proxylens "refusing database move: target already exists: $database_path"
+			return 1
+		fi
+		mkdir -p "$(dirname "$database_path")" || return 1
+		mv "$old_database_path" "$database_path" || return 1
+		[ ! -e "$old_database_path-wal" ] || mv "$old_database_path-wal" "$database_path-wal" || return 1
+		[ ! -e "$old_database_path-shm" ] || mv "$old_database_path-shm" "$database_path-shm" || return 1
+		logger -t proxylens "database moved from $old_database_path to $database_path"
+	fi
+	mkdir -p "$(dirname "$database_path")" || return 1
+	printf '%s\n' "$database_path" > "$state_file"
+
+	procd_open_instance
+	procd_set_param command /usr/bin/proxylens --listen "0.0.0.0:$port" --data-dir "$data_dir" --database "$database_path" --sing-box "$sing_box_path"
+	procd_set_param env \
+		PROXYLENS_ADMIN_TOKEN="$admin_token" \
+		PROXYLENS_PUBLIC_BASE_URL="$public_base_url" \
+		PROXYLENS_MAX_LOG_MB="$max_log_mb" \
+		PROXYLENS_MAX_DB_MB="$max_db_mb" \
+		PROXYLENS_MANAGE_SING_BOX="$manage_sing_box"
+	procd_set_param respawn 3600 5 5
+	procd_set_param limits core="0 0" nofile="4096 4096"
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param file /etc/config/proxylens
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger proxylens
+}

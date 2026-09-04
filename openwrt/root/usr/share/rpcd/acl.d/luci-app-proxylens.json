@@ -1,0 +1,13 @@
+{
+  "luci-app-proxylens": {
+    "description": "Configure and control ProxyLens",
+    "read": {
+      "uci": [ "proxylens" ],
+      "file": { "/etc/init.d/proxylens": [ "exec" ] }
+    },
+    "write": {
+      "uci": [ "proxylens" ],
+      "file": { "/etc/init.d/proxylens": [ "exec" ] }
+    }
+  }
+}

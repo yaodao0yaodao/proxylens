@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ProxyLens 节点质量</title><link rel="stylesheet" href="/assets/app.css?v=0306"></head>
+<body>
+<header><div><h1>ProxyLens</h1><p>严选最稳定的节点！</p></div><div class="header-actions"><button id="versionBtn" class="ghost" hidden>版本</button><button id="settingsBtn" class="ghost" hidden>全局设置</button><button id="add" hidden>新建任务</button></div></header>
+<main>
+<section id="overview" hidden><div id="storage" class="muted">正在读取数据库空间…</div><div id="softwareNotices" class="notice-lines"></div></section>
+<section id="auth"><h2>管理令牌</h2><p>验证后才能新建或管理任务。Windows/Linux 本机运行时可以直接读取；OpenWrt 请在 LuCI 中查看。</p><label>管理令牌<input id="token" type="password" autocomplete="current-password"></label><div class="actions"><button id="readLocalToken" type="button" class="ghost">读取本机令牌</button><button id="login">进入</button></div></section>
+<section id="tasks" hidden><div class="toolbar"><h2>任务</h2><div class="toolbar-actions"><button id="backup" class="ghost">下载数据库</button><button id="logs" class="ghost">下载日志</button></div></div><div id="cards"></div></section>
+<section id="nodes" hidden><button id="back" class="ghost">← 返回任务</button><h2 id="nodeTitle">节点质量</h2><div class="table"><table><thead><tr><th>节点</th><th>原始节点名称</th><th>协议</th><th><button class="sort" data-sort="availability">可用率</button></th><th><button class="sort" data-sort="latency">体验延迟*</button></th><th><button class="sort" data-sort="priority">优先级</button></th></tr></thead><tbody id="nodeRows"></tbody></table></div><small>* 800 ms及以上计为不可用；Web展示实际出口稳态延迟，公共抖动和物理距离只在评分中处理。点击表头可排序。</small></section>
+</main>
+<dialog id="newTask"><form id="newTaskForm"><h2>新建任务</h2><div class="settings-grid">
+<label class="full-row">名称（可选）<input id="name" placeholder="留空后从订阅自动获取"></label>
+<label class="full-row">Clash/Mihomo 订阅地址<input id="sub" type="url" required></label>
+<label>完整检测频率（分钟）<input id="newDetectionMinutes" type="number" min="15" max="10080" placeholder="继承全局"></label>
+<label>Google Play 模式<select id="newGooglePlayMode"><option value="">继承全局</option><option value="stable">稳定：代理下载</option><option value="economy">省流：国内 CDN 直连</option></select></label>
+<label>代理端口<input id="newLANPort" type="number" min="1" max="65535" placeholder="继承全局"></label>
+<label>局域网代理<select id="newLANEnabled"><option value="">继承全局</option><option value="true">启用</option><option value="false">关闭</option></select></label>
+</div><div class="actions"><button type="button" id="cancelTask" class="ghost">取消</button><button type="submit">创建并开始检测</button></div></form></dialog>
+<dialog id="settingsDialog"><form id="settingsForm"><h2>全局设置</h2><div class="settings-grid">
+<label>完整检测频率（分钟）<input id="detectionMinutes" type="number" min="15" max="10080" required></label>
+<label>Google Play 模式<select id="globalGooglePlayMode"><option value="stable">稳定：代理下载</option><option value="economy">省流：国内 CDN 直连</option></select></label>
+<label>代理端口<input id="globalLANPort" type="number" min="1" max="65535" required></label>
+<label>局域网代理<select id="globalLANEnabled"><option value="true">启用</option><option value="false">关闭</option></select></label>
+</div><p class="muted">保存后会使用新设置重新开始所有未暂停任务。</p><div class="actions"><button type="button" id="cancelSettings" class="ghost">取消</button><button type="submit">保存并重新检测</button></div></form></dialog>
+<dialog id="taskSettingsDialog"><form id="taskSettingsForm"><h2 id="taskSettingsTitle">任务设置</h2><p class="muted">检测和代理选项留空表示继承全局设置。</p><div class="settings-grid">
+<label class="full-row">名称（可选）<input id="taskName" placeholder="留空后从订阅自动获取"></label>
+<label class="full-row">Clash/Mihomo 订阅地址<input id="taskSource" type="url" required></label>
+<label>完整检测频率（分钟）<input id="taskDetectionMinutes" type="number" min="15" max="10080" placeholder="继承全局"></label>
+<label>Google Play 模式<select id="taskGooglePlayMode"><option value="">继承全局</option><option value="stable">稳定：代理下载</option><option value="economy">省流：国内 CDN 直连</option></select></label>
+<label>代理端口<input id="taskLANPort" type="number" min="1" max="65535" placeholder="继承全局"></label>
+<label>局域网代理<select id="taskLANEnabled"><option value="">继承全局</option><option value="true">启用</option><option value="false">关闭</option></select></label>
+</div><div class="actions"><button type="button" id="cancelTaskSettings" class="ghost">取消</button><button type="submit">保存并重新检测</button></div></form></dialog>
+<dialog id="versionDialog"><h2>版本信息</h2><div id="versionInfo">正在读取…</div><div class="actions"><button type="button" id="closeVersion" class="ghost">关闭</button></div></dialog>
+<dialog id="continuousDialog"><h2 class="error">触发4小时不间断完整检测</h2><p class="error">可能触发机场风控导致数据异常，只在任务新建急用时推荐，稳定运行后无实际意义。</p><div class="actions"><button type="button" id="cancelContinuous" class="ghost">取消</button><button type="button" id="confirmContinuous" class="danger">确定</button></div></dialog>
+<dialog id="conflictDialog"><h2 id="conflictTitle">节点去重</h2><p class="muted">只有系统无法安全判断“这是旧节点发生变化，还是全新节点”时才需要人工确认。</p><div id="conflictList"></div><div class="actions"><button type="button" id="cancelConflicts" class="ghost">关闭</button></div></dialog>
+<div id="toast"></div><script src="/assets/app.js?v=0306"></script>
+</body></html>
