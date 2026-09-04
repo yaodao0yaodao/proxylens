@@ -17,13 +17,19 @@ concurrency inventory is in [docs/runtime-events.md](docs/runtime-events.md).
 
 ## OpenWrt quick start
 
-For OpenWrt/ImmortalWrt 25.12 and newer, copy the signed APK and its public
-signing key to the router, then run as root:
+For OpenWrt/ImmortalWrt 25.12 and newer, the public signing key must be trusted
+once before the first installation. Run these commands as root:
 
 ```sh
-cp proxylens-apk-public.pem /etc/apk/keys/
-apk add proxylens-0.3.1-r1_aarch64_cortex-a53.apk
+cd /tmp
+wget -O /etc/apk/keys/proxylens-apk-public.pem https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.1/proxylens-apk-public.pem
+wget -O proxylens-0.3.1-r1_aarch64_cortex-a53.apk https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.1/proxylens-0.3.1-r1_aarch64_cortex-a53.apk
+echo '1006d19223557eb861ab6ce8904ffe312b6bb78bfac077ed9606e5628cfcbf0d  proxylens-0.3.1-r1_aarch64_cortex-a53.apk' | sha256sum -c -
+apk add ./proxylens-0.3.1-r1_aarch64_cortex-a53.apk
 ```
+
+Later upgrades signed by the same private key do not need the public key to be
+installed again. Never install or distribute the private signing key.
 
 Open **Services → ProxyLens** in LuCI or browse to
 `http://ROUTER_IP:9099/`. Read the generated management token with:
