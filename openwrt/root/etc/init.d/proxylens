@@ -15,7 +15,7 @@ generate_token() {
 
 start_service() {
 	config_load proxylens
-	local enabled port data_dir database_path public_base_url admin_token max_log_mb max_db_mb sing_box_path manage_sing_box
+	local enabled port data_dir database_path public_base_url admin_token max_log_mb max_db_mb sing_box_path
 	config_get_bool enabled main enabled 0
 	[ "$enabled" -eq 1 ] || return 0
 	config_get port main port 9099
@@ -26,7 +26,6 @@ start_service() {
 	config_get max_log_mb main max_log_mb 8
 	config_get max_db_mb main max_db_mb 96
 	config_get sing_box_path main sing_box_path /usr/lib/proxylens/sing-box
-	config_get_bool manage_sing_box main manage_sing_box 1
 	[ -n "$admin_token" ] || admin_token="$(generate_token)"
 	mkdir -p "$data_dir"
 	chmod 700 "$data_dir"
@@ -57,8 +56,7 @@ start_service() {
 		PROXYLENS_ADMIN_TOKEN="$admin_token" \
 		PROXYLENS_PUBLIC_BASE_URL="$public_base_url" \
 		PROXYLENS_MAX_LOG_MB="$max_log_mb" \
-		PROXYLENS_MAX_DB_MB="$max_db_mb" \
-		PROXYLENS_MANAGE_SING_BOX="$manage_sing_box"
+		PROXYLENS_MAX_DB_MB="$max_db_mb"
 	procd_set_param respawn 3600 5 5
 	procd_set_param limits core="0 0" nofile="4096 4096"
 	procd_set_param stdout 1

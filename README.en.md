@@ -81,7 +81,8 @@ Google Play, Steam, DNS, node, and country routing for mainland China networks.
 - A full detection cycle runs every 60 minutes by default and is configurable from 15 minutes to seven days.
 - Each cycle refreshes the subscription and exit IPs, measures steady-state latency and availability, recalculates quality, and regenerates profiles.
 - A failed request or measured latency of 800 ms or more is unavailable and stores no latency value.
-- Routing artifacts and the sing-box dependency used by ProxyLens are checked independently every 24 hours.
+- Routing artifacts update independently every 24 hours. ProxyLens only reads
+  the current sing-box version and never downloads, updates, or replaces the core.
 - Raw observations and per-cycle quality snapshots remain at full resolution for 48 hours. Older data becomes hourly summaries retained for 90 days; 24-hour quality summaries are retained for one year. Quality calculations use the latest 30 days.
 
 After six continuous hours of subscription refresh failures, generated profiles

@@ -245,7 +245,7 @@ function renderVersion(info) {
   $('#versionInfo').innerHTML = `
     <div class="version-summary">
       <div class="version-card"><strong>ProxyLens ${esc(software.version || '未知')}</strong><div class="muted">程序文件：${fmtTime(software.updated_at)}</div><div class="muted">${esc(build.os || '未知')}/${esc(build.arch || '未知')} · ${esc(build.go_version || 'Go 未知')} · 数据库 v${esc(build.database_schema ?? '未知')}</div><div class="muted">构建修订：${esc(revision)}</div></div>
-      <div class="version-card"><strong>sing-box ${esc(core.version || '未知')}</strong><div class="muted">核心文件：${fmtTime(core.updated_at)}</div><div class="muted">最近检查：${fmtTime(core.last_checked_at)} · 最近尝试：${fmtTime(core.last_attempt_at)}</div>${core.error ? `<div class="error">${esc(core.error)}</div>` : ''}</div>
+      <div class="version-card"><strong>sing-box ${esc(core.version || '未知')}</strong></div>
     </div>
     <section class="version-section"><h3>输入兼容能力</h3><div class="version-card"><strong>${esc(input.format || '未知')}</strong><div class="muted">拉取 UA：${esc(input.fetch_ua || '未知')}</div><div>节点协议：${esc((input.protocols || []).join('、'))}</div><div>传输层：${esc((input.transports || []).join('、'))}</div></div></section>
     <section class="version-section"><h3>配置兼容能力与 User-Agent</h3><p class="muted">相同内容不重复保存：原生 sing-box 桌面端复用 Carton 对应核心版本的配置；Android 使用 SFA 配置。</p><div class="compat-list">${compatibility.map(item => `<div class="compat-row"><strong>${esc(item.client)}</strong><code>${esc(item.ua)}</code><span>${esc(item.output)}</span><span class="muted">${esc(item.notes)}</span></div>`).join('')}</div></section>

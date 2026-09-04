@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/yaodao0yaodao/proxylens/internal/dependency"
 	"github.com/yaodao0yaodao/proxylens/internal/generator"
 	"github.com/yaodao0yaodao/proxylens/internal/model"
 	"github.com/yaodao0yaodao/proxylens/internal/naming"
@@ -37,7 +36,6 @@ type Service struct {
 	Log             *slog.Logger
 	Rules           *rules.Manager
 	PublicBaseURL   string
-	ManageSingBox   bool
 	mu              sync.Mutex
 	running         map[string]*runtimeState
 	queued          map[string]*queuedState
@@ -825,7 +823,7 @@ func (s *Service) Generate(ctx context.Context, taskID string) error {
 			opt.Alerts = append(opt.Alerts, "重要提示 · "+task.LastError)
 		}
 	}
-	for _, key := range []string{"rules_important_alert", "process_rules_important_alert", "dependency_important_alert"} {
+	for _, key := range []string{"rules_important_alert", "process_rules_important_alert"} {
 		if alert, alertErr := s.Store.Setting(ctx, key); alertErr == nil && strings.TrimSpace(alert) != "" {
 			opt.Alerts = append(opt.Alerts, "重要提示 · "+alert)
 		}
@@ -1004,25 +1002,15 @@ func (s *Service) runDue(ctx context.Context) {
 		processesLast, _ := time.Parse(time.RFC3339Nano, rawProcesses)
 		rawAttempt, _ := s.Store.Setting(ctx, "download_processes_last_attempt")
 		processesAttempt, _ := time.Parse(time.RFC3339Nano, rawAttempt)
-		dependencyRaw, _ := s.Store.Setting(ctx, "singbox_last_update_check")
-		dependencyLast, _ := time.Parse(time.RFC3339Nano, dependencyRaw)
-		dependencyAttemptRaw, _ := s.Store.Setting(ctx, "singbox_last_update_attempt")
-		dependencyAttempt, _ := time.Parse(time.RFC3339Nano, dependencyAttemptRaw)
 		rulesDue := last.IsZero() || time.Since(last) >= schedule.RulesInterval || !s.Rules.Complete()
 		processesDue := processesLast.IsZero() || time.Since(processesLast) >= schedule.RulesInterval || len(s.Rules.ProcessNames()) == 0
-		dependencyDue := s.ManageSingBox && (dependencyLast.IsZero() || time.Since(dependencyLast) >= schedule.RulesInterval)
 		if rulesDue && !rulesAttempt.IsZero() && time.Since(rulesAttempt) < 15*time.Minute {
 			rulesDue = false
 		}
 		if processesDue && !processesAttempt.IsZero() && time.Since(processesAttempt) < 15*time.Minute {
 			processesDue = false
 		}
-		// A core archive is tens of MiB. Do not repeatedly consume bandwidth on
-		// a broken route; rules/process lists are small and may retry sooner.
-		if dependencyDue && !dependencyAttempt.IsZero() && time.Since(dependencyAttempt) < 6*time.Hour {
-			dependencyDue = false
-		}
-		if rulesDue || processesDue || dependencyDue {
+		if rulesDue || processesDue {
 			go func() {
 				runCtx, ok := s.begin(ctx, "__rules__", "正在更新规则")
 				if !ok {
@@ -1072,42 +1060,6 @@ func (s *Service) runDue(ctx context.Context) {
 						_ = s.Store.PutSetting(runCtx, "download_processes_last_update", now)
 					}
 				}
-				dependencyUpdated := false
-				if dependencyDue && s.Probe != nil {
-					now := time.Now().UTC().Format(time.RFC3339Nano)
-					_ = s.Store.PutSetting(runCtx, "singbox_last_update_attempt", now)
-					client := &http.Client{Timeout: 5 * time.Minute}
-					var result dependency.Result
-					updateErr := s.Probe.WithExclusive(runCtx, func() error {
-						var err error
-						result, err = dependency.UpdateSingBox(runCtx, client, s.Probe.SingBoxPath)
-						return err
-					})
-					if updateErr != nil {
-						directErr := updateErr
-						if fallback, found := s.bestInternalProxy(runCtx); found {
-							updateErr = s.Probe.WithHTTPClient(runCtx, fallback, func(proxyClient *http.Client) error {
-								result, updateErr = dependency.UpdateSingBox(runCtx, proxyClient, s.Probe.SingBoxPath)
-								return updateErr
-							})
-						}
-						if updateErr != nil {
-							message := "sing-box依赖更新失败，继续使用当前版本"
-							_ = s.Store.PutSetting(runCtx, "dependency_important_alert", message)
-							alertsChanged = true
-							s.Log.Warn("sing-box dependency update failed; keeping current binary", "direct_error", directErr, "error", updateErr)
-						}
-					}
-					if updateErr == nil {
-						_ = s.Store.PutSetting(runCtx, "singbox_last_update_check", now)
-						_ = s.Store.PutSetting(runCtx, "dependency_important_alert", "")
-						alertsChanged = true
-						dependencyUpdated = result.Updated
-						if result.Updated {
-							s.Log.Info("sing-box dependency updated", "from", result.Current, "to", result.Latest)
-						}
-					}
-				}
 				okAll := true
 				for _, st := range statuses {
 					if st.LastError != "" {
@@ -1126,7 +1078,7 @@ func (s *Service) runDue(ctx context.Context) {
 					}
 					alertsChanged = true
 				}
-				if processesUpdated || dependencyUpdated || alertsChanged {
+				if processesUpdated || alertsChanged {
 					if tasks, err := s.Store.Tasks(runCtx); err == nil {
 						for _, task := range tasks {
 							if s.Running(task.ID) {

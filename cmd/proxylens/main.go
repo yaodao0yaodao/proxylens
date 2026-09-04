@@ -56,7 +56,6 @@ func main() {
 	p := &probe.Engine{SingBoxPath: cfg.SingBoxPath, DataDir: cfg.DataDir, PortStart: cfg.ProbePortStart, Log: log}
 	svc := service.New(st, p, cfg.Schedule, log)
 	svc.PublicBaseURL = cfg.PublicBaseURL
-	svc.ManageSingBox = cfg.ManageSingBox
 	server := &webui.Server{Service: svc, AdminToken: cfg.AdminToken, LogPath: cfg.LogPath, PublicBaseURL: cfg.PublicBaseURL, Version: version, Log: log}
 	httpServer := &http.Server{Addr: cfg.Listen, Handler: server.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 32 << 10}
 	// Existing artifacts are usable immediately. Recalculate and regenerate in

@@ -412,7 +412,7 @@ func (s *Server) startTaskRun(id string) {
 func (s *Server) overview(ctx context.Context, w http.ResponseWriter) {
 	var alerts []string
 	seen := map[string]bool{}
-	for _, key := range []string{"rules_important_alert", "process_rules_important_alert", "dependency_important_alert"} {
+	for _, key := range []string{"rules_important_alert", "process_rules_important_alert"} {
 		if value, err := s.Service.Store.Setting(ctx, key); err == nil {
 			value = strings.TrimSpace(value)
 			if value != "" && !seen[value] {
@@ -432,14 +432,10 @@ func (s *Server) versionInfo(ctx context.Context, w http.ResponseWriter) {
 		return time.Time{}
 	}
 	executable, _ := os.Executable()
-	coreVersion, coreError := "", ""
-	coreUpdatedAt := time.Time{}
+	coreVersion := ""
 	if s.Service.Probe != nil {
-		coreUpdatedAt = fileTime(s.Service.Probe.SingBoxPath)
 		if value, err := dependency.Version(ctx, s.Service.Probe.SingBoxPath); err == nil {
 			coreVersion = value
-		} else {
-			coreError = err.Error()
 		}
 	}
 	ruleItems := []any{}
@@ -488,7 +484,7 @@ func (s *Server) versionInfo(ctx context.Context, w http.ResponseWriter) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"software":               map[string]any{"version": s.Version, "updated_at": fileTime(executable)},
-		"sing_box":               map[string]any{"version": coreVersion, "updated_at": coreUpdatedAt, "last_checked_at": settingTime("singbox_last_update_check"), "last_attempt_at": settingTime("singbox_last_update_attempt"), "error": coreError},
+		"sing_box":               map[string]any{"version": coreVersion},
 		"rule_maintenance":       map[string]any{"last_success_at": settingTime("rules_last_update"), "last_attempt_at": settingTime("rules_last_attempt")},
 		"build":                  build,
 		"rules":                  ruleItems,

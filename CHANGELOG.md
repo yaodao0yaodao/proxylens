@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Stop automatically checking, downloading, or replacing sing-box. The version
+  page now reports only the configured core's current version.
+
 ## 0.3.1 - 2026-09-04
 
 - Show complete safe node identity details for every merge candidate.
@@ -7,7 +12,7 @@
   the medium-cost group is empty.
 - Route the no-Japan fallback directly to automatic selection without a
   selector cycle.
-- Support distribution-managed sing-box installations.
+- Support selecting a distribution-managed sing-box installation.
 - Add a standard command-line version response.
 
 ## 0.3.0 - 2026-09-04

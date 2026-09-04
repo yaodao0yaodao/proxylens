@@ -97,12 +97,10 @@ The management API reports the SQLite/WAL/SHM byte total and free bytes on the
 containing partition. Full-resolution traffic history remains bounded, so no
 misleading lifetime probe-traffic total is calculated.
 
-The core dependency updater runs with the 24-hour rule maintenance pass. It
-uses only the official stable SagerNet release API and asset, streams the file
-to avoid an OpenWrt memory spike, verifies the release-provided SHA-256 digest,
-selects the platform's musl/glibc build, checks the new executable and a smoke
-config, then performs an atomic swap. Failed archive transfers back off for six
-hours rather than repeatedly consuming the router's bandwidth.
+ProxyLens uses the sing-box executable selected by configuration but does not
+download, update, or replace it. The version page runs the configured binary's
+`version` command and displays only the detected version. Core lifecycle and
+upgrades remain the responsibility of the installed package or system administrator.
 Mihomo is an input-format compatibility target, not a runtime dependency, so it
 is not downloaded or updated. Direct upstream access is preferred; a failure
 may use a short-lived local HTTP proxy through the best ordinary-rate,

@@ -8,7 +8,7 @@ bounds for an individual operation unless stated otherwise.
 | Event | Trigger | Work |
 | --- | --- | --- |
 | Startup regeneration | Every process start | Recalculate stored quality and regenerate stored profiles in the background. Existing Web UI and artifacts remain available while this runs. |
-| Scheduler scan | Startup, then every minute | Check task, rule, process-list, dependency, and retention deadlines. |
+| Scheduler scan | Startup, then every minute | Check task, rule, process-list, and retention deadlines. |
 | Complete detection | Per-task/global interval, minimum 15 minutes | Refresh subscription → detect exit IP and steady latency → calculate quality → generate all client profiles. |
 | New task | Successful task creation | Start one complete detection asynchronously. |
 | Start/manual run | Start or run button | Enable the task and run after its current run finishes. Repeated ordinary triggers are coalesced into one pending run. |
@@ -18,7 +18,6 @@ bounds for an individual operation unless stated otherwise.
 | Stop four-hour detection | Stop button | Let the current detection finish, then stop the campaign. Pause cancels it immediately. |
 | Rule refresh | Every 24 hours or incomplete cache | Refresh maintained SRS rule files. |
 | Download-process refresh | Every 24 hours or missing cache | Refresh the Carton DIRECT process list. |
-| sing-box update check | Every 24 hours | Check the official stable release and atomically install a verified newer core. |
 | Measurement retention | Startup, then at most hourly | Keep raw measurements 48 hours, hourly summaries 90 days, cycle quality snapshots 48 hours, and daily quality summaries one year. |
 | Database compaction | Startup, then every 24 hours | Enforce the configured database size ceiling and compact SQLite. |
 | Web refresh | Every three seconds while no dialog is open | Fetch task state and overview concurrently. |
@@ -42,21 +41,19 @@ set refresh every 12 hours.
 | IP country/ASN lookup | 15 seconds | No automatic retry in the same cycle; a later detection tries again. Up to three independent lookups run concurrently. |
 | Each maintained rule HTTP request | 30 seconds; 8 MiB limit | Direct pass, then only failed providers retry once through the best internal proxy. Failed campaigns retry no sooner than 15 minutes and retain valid cache. |
 | Download-process list | 30 seconds; 1 MiB limit | Direct once, proxy fallback once; retry no sooner than 15 minutes and retain cache. |
-| sing-box release/API/archive request | 5 minutes; archive size and SHA-256 verified | Direct once, proxy fallback once; failed checks retry no sooner than 6 hours. Core replacement is serialized with all probe processes. |
 | HTTP server | headers 10 seconds; read 30 seconds; write 5 minutes; idle 2 minutes | No server-level request replay. |
 | Graceful shutdown | 15 seconds | Outstanding work receives cancellation through the process context. |
 
 ## Concurrency boundaries
 
 - Different tasks may fetch subscriptions concurrently.
-- Only one sing-box probe/internal-proxy/core-update operation runs at a time;
-  this prevents port collisions and binary replacement races.
+- Only one sing-box probe or internal-proxy operation runs at a time; this
+  prevents local port collisions.
 - Node network tests inside one probe process use four workers.
 - Exit-country and server-ASN lookups use three workers, but database updates
   remain sequential and deterministic.
-- Rule/dependency maintenance runs independently from task scheduling. Direct
-  downloads do not require the probe lock; proxy fallbacks and core replacement
-  do.
+- Rule maintenance runs independently from task scheduling. Direct downloads
+  do not require the probe lock; proxy fallbacks do.
 - Quality calculation must wait for the complete probe result, and profile
   generation must wait for quality calculation. These stages are intentionally
   not detached because doing so could publish mixed-generation data.
