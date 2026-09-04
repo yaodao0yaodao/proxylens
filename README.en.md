@@ -28,6 +28,16 @@ LuCI and Web management. The core remains portable. Further reading:
 - [OpenWrt notes](docs/openwrt.md)
 - [Trigger, timeout, retry, and concurrency inventory](docs/runtime-events.md)
 
+## Recommended clients
+
+- **Android:** [Official SFA (sing-box for Android) documentation and downloads](https://sing-box.sagernet.org/installation/clients/sfa/)
+- **Windows, Linux, and CachyOS:** [Carton releases and downloads](https://github.com/821869798/carton/releases)
+
+SFA is the official sing-box Android client. Carton is a third-party sing-box
+desktop GUI for Windows and Linux and is not affiliated with the sing-box
+project. ProxyLens uses the client's User-Agent to return the matching profile,
+so both clients can use the same subscription URL.
+
 ## OpenWrt quick start
 
 The public signing key must be trusted once before the first installation.
