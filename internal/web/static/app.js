@@ -208,30 +208,26 @@ async function openIdentityConflicts(id) {
   selectedTaskID = id;
   const conflicts = ((await api(`tasks/${id}/identity-conflicts`)) || []).filter(item => !item.resolved_at);
   $('#conflictTitle').textContent = `${taskNames.get(id) || '任务'} · 节点去重`;
-  const candidateDetail = node => {
+  const candidateDetail = (node, pending = false) => {
     if (!node) return '<p>节点详细信息暂不可用</p>';
     const location = node.country || node.country_code || '尚未取得出口地区';
     const endpoint = `${node.server || '未知服务器'}:${node.port || '未知端口'}`;
     const exit = node.exit_ip || '尚未取得';
     const asn = node.asn || '尚未取得';
-    const multiplier = Number(node.multiplier || 1).toLocaleString(undefined, {maximumFractionDigits: 3});
-    return `<div class="conflict-node-head"><strong>${esc(node.display_name || node.original_name || '未命名节点')}</strong><span class="status ${node.removed ? 'paused' : 'running'}">${node.removed ? '已移除，等待复活' : '当前订阅中'}</span></div>
+    return `<div class="conflict-node-head"><strong>${esc(node.display_name || node.original_name || '未命名节点')}</strong><span class="status ${node.removed ? 'paused' : 'running'}">${node.removed ? '已移除，等待复活' : pending ? '等待确认' : '当前订阅中'}</span></div>
       <div class="conflict-node-details">
         <div><span>原始名称</span><b>${esc(node.original_name || '无')}</b></div>
         <div><span>协议</span><b>${esc((node.protocol || '未知').toUpperCase())}</b></div>
         <div><span>服务器</span><b>${esc(endpoint)}</b></div>
         <div><span>出口</span><b>${esc(location)} · ${esc(exit)}</b></div>
-        <div><span>倍率 / 永久编号</span><b>${esc(multiplier)}x / ${esc(node.number || '未分配')}</b></div>
         <div><span>ASN</span><b>${esc(asn)}</b></div>
-        <div class="full-row"><span>节点 ID</span><b class="wrap-id">${esc(node.id)}</b></div>
         <div><span>首次记录</span><b>${fmtTime(node.added_at)}</b></div>
-        <div><span>最近变化</span><b>${fmtTime(node.modified_at)}</b></div>
         ${node.removed_at ? `<div><span>移除时间</span><b>${fmtTime(node.removed_at)}</b></div>` : ''}
       </div>`;
   };
   const reason = value => ({'ambiguous continuity key':'连接特征对应多个旧节点','ambiguous protocol and source name':'协议和原始名称对应多个旧节点'})[value] || value;
   $('#conflictList').innerHTML = conflicts.length ? conflicts.map(item => `
-    <article class="card"><h3>当前订阅中的节点</h3><div class="conflict-node incoming">${candidateDetail(item.incoming)}</div><p class="muted">${esc(reason(item.reason))}，系统无法确定它是不是下面某个旧节点改名或换了服务器。</p>
+    <article class="card"><h3>等待确认节点</h3><div class="conflict-node incoming">${candidateDetail(item.incoming, true)}</div><p class="muted">${esc(reason(item.reason))}，系统无法确定它是不是下面某个旧节点改名或换了服务器。</p>
     <h4>如果它是旧节点，请选择要继承的历史：</h4>
     <div class="conflict-candidates">${(item.candidates || []).map(candidate => `<div class="conflict-node">${candidateDetail(candidate)}<div class="actions"><button type="button" data-merge-target="${esc(candidate.id)}" data-merge-source="${esc(item.incoming_id)}">合并到这个节点并继承历史</button></div></div>`).join('')}</div>
     <div class="actions"><button type="button" class="ghost" data-keep-new="${item.id}">这是新节点，不继承历史</button></div></article>`).join('') : '<p>没有需要人工确认的重复节点。</p>';

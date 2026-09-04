@@ -4,6 +4,9 @@
 
 - Stop automatically checking, downloading, or replacing sing-box. The version
   page now reports only the configured core's current version.
+- Simplify identity-conflict cards and label the incoming record as waiting for confirmation.
+- Fall back across IP-country providers and honor rate-limit cooldowns so a
+  usable node does not remain unknown when one provider exhausts its quota.
 
 ## 0.3.1 - 2026-09-04
 

@@ -2,6 +2,7 @@ package probe
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -555,14 +556,15 @@ func (e *Engine) pipeLogs(r io.Reader) {
 }
 
 type Geo struct {
-	Client *http.Client
-	mu     sync.Mutex
-	cache  map[string]GeoResult
+	Client       *http.Client
+	mu           sync.Mutex
+	cache        map[string]GeoResult
+	blockedUntil map[string]time.Time
 }
 type GeoResult struct{ IP, CountryCode, Country, ASN string }
 
 func NewGeo() *Geo {
-	return &Geo{Client: &http.Client{Timeout: 15 * time.Second}, cache: map[string]GeoResult{}}
+	return &Geo{Client: &http.Client{Timeout: 15 * time.Second}, cache: map[string]GeoResult{}, blockedUntil: map[string]time.Time{}}
 }
 func (g *Geo) Lookup(ctx context.Context, ip string) (GeoResult, error) {
 	g.mu.Lock()
@@ -571,40 +573,140 @@ func (g *Geo) Lookup(ctx context.Context, ip string) (GeoResult, error) {
 		return v, nil
 	}
 	g.mu.Unlock()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://ipwho.is/"+url.PathEscape(ip), nil)
-	req.Header.Set("User-Agent", "ProxyLens/1.0")
-	resp, e := g.Client.Do(req)
-	if e != nil {
-		return GeoResult{}, e
+
+	type provider struct {
+		name    string
+		request func() *http.Request
+		decode  func(io.Reader) (GeoResult, error)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return GeoResult{}, fmt.Errorf("geo lookup HTTP %d", resp.StatusCode)
+	providers := []provider{
+		{
+			name: "ipwho.is",
+			request: func() *http.Request {
+				req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://ipwho.is/"+url.PathEscape(ip), nil)
+				return req
+			},
+			decode: func(body io.Reader) (GeoResult, error) {
+				var raw struct {
+					Success     bool   `json:"success"`
+					IP          string `json:"ip"`
+					CountryCode string `json:"country_code"`
+					Country     string `json:"country"`
+					Connection  struct {
+						ASN int    `json:"asn"`
+						Org string `json:"org"`
+					} `json:"connection"`
+				}
+				if err := json.NewDecoder(io.LimitReader(body, 1<<20)).Decode(&raw); err != nil {
+					return GeoResult{}, err
+				}
+				if !raw.Success || raw.CountryCode == "" {
+					return GeoResult{}, errors.New("lookup failed")
+				}
+				result := GeoResult{IP: raw.IP, CountryCode: strings.ToUpper(raw.CountryCode), Country: raw.Country}
+				if raw.Connection.ASN > 0 {
+					result.ASN = strings.TrimSpace(fmt.Sprintf("AS%d %s", raw.Connection.ASN, raw.Connection.Org))
+				}
+				return result, nil
+			},
+		},
+		{
+			name: "ipapi.co",
+			request: func() *http.Request {
+				req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://ipapi.co/"+url.PathEscape(ip)+"/json/", nil)
+				return req
+			},
+			decode: func(body io.Reader) (GeoResult, error) {
+				var raw struct {
+					IP          string `json:"ip"`
+					CountryCode string `json:"country_code"`
+					Country     string `json:"country_name"`
+					ASN         string `json:"asn"`
+					Org         string `json:"org"`
+					Error       bool   `json:"error"`
+				}
+				if err := json.NewDecoder(io.LimitReader(body, 1<<20)).Decode(&raw); err != nil {
+					return GeoResult{}, err
+				}
+				if raw.Error || raw.CountryCode == "" {
+					return GeoResult{}, errors.New("lookup failed")
+				}
+				return GeoResult{IP: raw.IP, CountryCode: strings.ToUpper(raw.CountryCode), Country: raw.Country, ASN: strings.TrimSpace(raw.ASN + " " + raw.Org)}, nil
+			},
+		},
+		{
+			name: "iplocation.net",
+			request: func() *http.Request {
+				body, _ := json.Marshal(map[string]string{"ip": ip})
+				req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.iplocation.net/v2/ip-country", bytes.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				return req
+			},
+			decode: func(body io.Reader) (GeoResult, error) {
+				var raw struct {
+					IP           string `json:"ip"`
+					CountryCode  string `json:"country_code2"`
+					Country      string `json:"country_name"`
+					ResponseCode string `json:"response_code"`
+				}
+				if err := json.NewDecoder(io.LimitReader(body, 1<<20)).Decode(&raw); err != nil {
+					return GeoResult{}, err
+				}
+				if raw.ResponseCode != "200" || raw.CountryCode == "" {
+					return GeoResult{}, errors.New("lookup failed")
+				}
+				return GeoResult{IP: raw.IP, CountryCode: strings.ToUpper(raw.CountryCode), Country: raw.Country}, nil
+			},
+		},
 	}
-	var raw struct {
-		Success     bool   `json:"success"`
-		IP          string `json:"ip"`
-		CountryCode string `json:"country_code"`
-		Country     string `json:"country"`
-		Connection  struct {
-			ASN int    `json:"asn"`
-			Org string `json:"org"`
-		} `json:"connection"`
+
+	var failures []string
+	for _, candidate := range providers {
+		g.mu.Lock()
+		blocked := time.Now().Before(g.blockedUntil[candidate.name])
+		g.mu.Unlock()
+		if blocked {
+			continue
+		}
+		req := candidate.request()
+		req.Header.Set("User-Agent", "ProxyLens/1.0")
+		resp, err := g.Client.Do(req)
+		if err != nil {
+			failures = append(failures, candidate.name+": "+err.Error())
+			continue
+		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			until := time.Now().Add(time.Hour)
+			if seconds, parseErr := strconv.Atoi(resp.Header.Get("Retry-After")); parseErr == nil && seconds > 0 {
+				until = time.Now().Add(time.Duration(seconds) * time.Second)
+			}
+			g.mu.Lock()
+			g.blockedUntil[candidate.name] = until
+			g.mu.Unlock()
+		}
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+			failures = append(failures, fmt.Sprintf("%s: HTTP %d", candidate.name, resp.StatusCode))
+			continue
+		}
+		result, decodeErr := candidate.decode(resp.Body)
+		_ = resp.Body.Close()
+		if decodeErr != nil {
+			failures = append(failures, candidate.name+": "+decodeErr.Error())
+			continue
+		}
+		if result.IP == "" {
+			result.IP = ip
+		}
+		g.mu.Lock()
+		g.cache[ip] = result
+		g.mu.Unlock()
+		return result, nil
 	}
-	if e = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&raw); e != nil {
-		return GeoResult{}, e
+	if len(failures) == 0 {
+		return GeoResult{}, errors.New("all geolocation providers are cooling down")
 	}
-	if !raw.Success {
-		return GeoResult{}, errors.New("geo lookup failed")
-	}
-	v := GeoResult{IP: raw.IP, CountryCode: strings.ToUpper(raw.CountryCode), Country: raw.Country}
-	if raw.Connection.ASN > 0 {
-		v.ASN = fmt.Sprintf("AS%d %s", raw.Connection.ASN, raw.Connection.Org)
-	}
-	g.mu.Lock()
-	g.cache[ip] = v
-	g.mu.Unlock()
-	return v, nil
+	return GeoResult{}, errors.New(strings.Join(failures, " | "))
 }
 func (g *Geo) ResolveServer(ctx context.Context, server string) (GeoResult, error) {
 	ip := net.ParseIP(server)

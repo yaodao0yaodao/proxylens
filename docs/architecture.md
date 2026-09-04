@@ -29,6 +29,12 @@ rewritten on a no-op refresh. Connection parameters live only in the current
 node row; `config_revision` prevents measurements from an obsolete connection
 configuration influencing its replacement.
 
+Exit geography is cached in memory and queried through multiple providers.
+When a provider returns HTTP 429, its `Retry-After` cooldown is honored and a
+fallback provider is used; country-only lookup remains available if providers
+with ASN data are unavailable. The source name is never substituted for the
+measured exit country.
+
 Every configurable detection cycle performs subscription refresh, exit-IP
 discovery, steady-state latency/availability, 30-day
 quality calculation and profile generation in that order. The minimum interval
