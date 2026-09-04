@@ -4,22 +4,25 @@
 
 **Select the most stable nodes.**
 
-ProxyLens is a long-running, portable proxy quality analyzer and sing-box
-configuration publisher. Its first installable release targets 64-bit
-OpenWrt/ImmortalWrt with procd, UCI, and LuCI integration; the core also builds
-for Windows and 64-bit Linux.
+ProxyLens is an automatic proxy node selector that runs on your router.
 
-It imports Clash/Mihomo subscriptions, maintains durable node identities and
-key field history, measures availability and steady-state latency through each
-node's actual **exit**, calculates quality from the latest 30 days, builds
-routing and node groups, and publishes matching SFA, Carton, and native
-sing-box profiles through one User-Agent-aware subscription URL.
+Give it a Clash/Mihomo subscription URL. ProxyLens regularly checks whether
+each node works and how much latency it has, selects the more stable nodes, and
+publishes one sing-box subscription URL for your clients. SFA on Android,
+Carton on desktop, and native sing-box on Windows/Linux can all receive the
+right profile from that URL.
+
+Checks run through each node's **actual proxy exit**, not just against the node
+server. ProxyLens keeps node details and history in its database and updates
+routing rules and node groups automatically, so routine maintenance is not
+required.
 
 The current release package targets OpenWrt/ImmortalWrt 25.12+ on
 `aarch64_cortex-a53`. 32-bit ARM and MIPS are not advertised because the
 current SQLite dependency does not compile for those targets in this project.
 
-Further reading:
+The first release primarily targets 64-bit OpenWrt/ImmortalWrt and includes
+LuCI and Web management. The core remains portable. Further reading:
 
 - [Architecture](docs/architecture.md)
 - [OpenWrt notes](docs/openwrt.md)

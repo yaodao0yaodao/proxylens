@@ -4,20 +4,23 @@
 
 **严选最稳定的节点！**
 
-ProxyLens 是一套可长期运行、可跨平台移植的代理节点质量分析与 sing-box
-配置发布服务。首个可安装版本面向 64 位 OpenWrt/ImmortalWrt，集成 procd、
-UCI 和 LuCI；核心程序也可在 Windows 与 64 位 Linux 上构建。
+ProxyLens 是一个装在路由器上的节点自动筛选工具。
 
-它可以导入 Clash/Mihomo 订阅，永久维护节点身份及关键字段变更，通过每个
-节点的**实际出口**检测可用性和稳态延迟，使用最近 30 天的数据计算质量，
-自动生成分流与节点组，并通过同一个、可识别 User-Agent 的订阅地址向 SFA、
-Carton 和原生 sing-box 发布匹配的配置。
+你只需要填入 Clash/Mihomo 订阅地址。ProxyLens 会定期检查每个节点是否可用、
+延迟高不高，自动挑出更稳定的节点，再生成一条可以直接添加到客户端的
+sing-box 订阅地址。手机上的 SFA、电脑上的 Carton，以及 Windows/Linux 原生
+sing-box，都可以从这条地址取得适合自己的配置。
+
+节点检测针对的是**实际代理出口**，不是只检查节点服务器能否连接。节点资料、
+历史检测结果和名称变化会保存在数据库中，分流规则和节点分组也会自动更新，
+平时不需要手工维护。
 
 当前正式安装包适用于 OpenWrt/ImmortalWrt 25.12+ 的
 `aarch64_cortex-a53`。由于目前使用的 SQLite 依赖无法在本项目中编译到
 32 位 ARM 和 MIPS，因此暂不宣称支持这些架构。
 
-详细资料：
+首个版本主要安装在 64 位 OpenWrt/ImmortalWrt 上，提供 LuCI 和 Web 管理页面。
+核心程序保留跨平台能力。详细资料：
 
 - [架构说明](docs/architecture.md)
 - [OpenWrt 说明](docs/openwrt.md)
