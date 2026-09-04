@@ -567,12 +567,24 @@ func NewGeo() *Geo {
 	return &Geo{Client: &http.Client{Timeout: 15 * time.Second}, cache: map[string]GeoResult{}, blockedUntil: map[string]time.Time{}}
 }
 func (g *Geo) Lookup(ctx context.Context, ip string) (GeoResult, error) {
-	g.mu.Lock()
-	if v, ok := g.cache[ip]; ok {
+	return g.lookup(ctx, ip, false)
+}
+
+// LookupFresh bypasses the process-local result cache. Daily rule maintenance
+// uses it to notice when an unchanged exit IP is reclassified by the provider.
+func (g *Geo) LookupFresh(ctx context.Context, ip string) (GeoResult, error) {
+	return g.lookup(ctx, ip, true)
+}
+
+func (g *Geo) lookup(ctx context.Context, ip string, fresh bool) (GeoResult, error) {
+	if !fresh {
+		g.mu.Lock()
+		if v, ok := g.cache[ip]; ok {
+			g.mu.Unlock()
+			return v, nil
+		}
 		g.mu.Unlock()
-		return v, nil
 	}
-	g.mu.Unlock()
 
 	type provider struct {
 		name    string

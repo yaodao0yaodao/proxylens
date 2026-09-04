@@ -538,3 +538,57 @@ func TestAmbiguousIdentityRequiresExplicitMerge(t *testing.T) {
 		}
 	}
 }
+
+func TestUniqueRemovedEndpointWithZeroPaddedNameResurrectsAutomatically(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err = st.CreateTask(ctx, &model.Task{ID: "t-zero-pad", SubscriptionURL: "https://example.com", PublishToken: "zero-pad-token"}); err != nil {
+		t.Fatal(err)
+	}
+	shared := func(server string) map[string]any {
+		return map[string]any{"type": "vless", "server": server, "port": 36699, "uuid": "shared"}
+	}
+	old := model.Node{ID: "old-jp11", Protocol: "vless", Server: "direct-jp-xtom-01.example", Port: 36699, OriginalName: "🇯🇵JP011 / 7.0x🌟", Multiplier: 7, Config: shared("direct-jp-xtom-01.example")}
+	decoy := model.Node{ID: "other-jp", Protocol: "vless", Server: "direct-jp-other.example", Port: 36699, OriginalName: "🇯🇵JP12 / 7.0x🌟", Multiplier: 7, Config: shared("direct-jp-other.example")}
+	if err = st.UpsertNodes(ctx, "t-zero-pad", []model.Node{old, decoy}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err = st.UpdateNodeGeo(ctx, old.ID, "AS1", old.Server, "1.1.1.1", "JP", "Japan", ""); err != nil {
+		t.Fatal(err)
+	}
+	incoming := model.Node{ID: "new-jp11", Protocol: "vless", Server: old.Server, Port: old.Port, OriginalName: "🇯🇵JP11 / 7.0x🌟", Multiplier: 7, Config: shared(old.Server)}
+	if err = st.UpsertNodes(ctx, "t-zero-pad", []model.Node{incoming, decoy}, nil); err != nil {
+		t.Fatal(err)
+	}
+	conflicts, err := st.IdentityConflicts(ctx, "t-zero-pad")
+	if err != nil || len(conflicts) != 1 || conflicts[0].ResolvedAt != nil {
+		t.Fatalf("expected one unresolved ambiguity before the removed record can be matched: %+v err=%v", conflicts, err)
+	}
+	// On the next subscription refresh the old record is historical. The exact
+	// endpoint plus JP011/JP11 normalized name is unique and repairs the already
+	// materialized conflict automatically.
+	if err = st.UpsertNodes(ctx, "t-zero-pad", []model.Node{incoming, decoy}, nil); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := st.Nodes(ctx, "t-zero-pad", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored *model.Node
+	for i := range nodes {
+		if nodes[i].Server == old.Server {
+			restored = &nodes[i]
+		}
+	}
+	if restored == nil || restored.ID != old.ID || restored.OriginalName != incoming.OriginalName || restored.Number == 0 {
+		t.Fatalf("old identity was not safely restored: %+v", restored)
+	}
+	conflicts, err = st.IdentityConflicts(ctx, "t-zero-pad")
+	if err != nil || conflicts[0].ResolvedAt == nil {
+		t.Fatalf("safe conflict was not resolved: %+v err=%v", conflicts, err)
+	}
+}

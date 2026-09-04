@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ProxyLens 节点质量</title><link rel="stylesheet" href="/assets/app.css?v=0306"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ProxyLens 节点质量</title><link rel="stylesheet" href="/assets/app.css?v=0307"></head>
 <body>
 <header><div><h1>ProxyLens</h1><p>严选最稳定的节点！</p></div><div class="header-actions"><button id="versionBtn" class="ghost" hidden>版本</button><button id="settingsBtn" class="ghost" hidden>全局设置</button><button id="add" hidden>新建任务</button></div></header>
 <main>
@@ -31,8 +31,8 @@
 <label>代理端口<input id="taskLANPort" type="number" min="1" max="65535" placeholder="继承全局"></label>
 <label>局域网代理<select id="taskLANEnabled"><option value="">继承全局</option><option value="true">启用</option><option value="false">关闭</option></select></label>
 </div><div class="actions"><button type="button" id="cancelTaskSettings" class="ghost">取消</button><button type="submit">保存并重新检测</button></div></form></dialog>
-<dialog id="versionDialog"><h2>版本信息</h2><div id="versionInfo">正在读取…</div><div class="actions"><button type="button" id="closeVersion" class="ghost">关闭</button></div></dialog>
+<dialog id="versionDialog" class="fixed-footer-dialog"><div class="dialog-scroll"><h2>版本信息</h2><div id="versionInfo">正在读取…</div></div><div class="actions dialog-footer"><button type="button" id="closeVersion" class="ghost">关闭</button></div></dialog>
 <dialog id="continuousDialog"><h2 class="error">触发4小时不间断完整检测</h2><p class="error">可能触发机场风控导致数据异常，只在任务新建急用时推荐，稳定运行后无实际意义。</p><div class="actions"><button type="button" id="cancelContinuous" class="ghost">取消</button><button type="button" id="confirmContinuous" class="danger">确定</button></div></dialog>
-<dialog id="conflictDialog"><h2 id="conflictTitle">节点去重</h2><p class="muted">只有系统无法安全判断“这是旧节点发生变化，还是全新节点”时才需要人工确认。</p><div id="conflictList"></div><div class="actions"><button type="button" id="cancelConflicts" class="ghost">关闭</button></div></dialog>
-<div id="toast"></div><script src="/assets/app.js?v=0306"></script>
+<dialog id="conflictDialog" class="fixed-footer-dialog"><div class="dialog-scroll"><h2 id="conflictTitle">节点去重</h2><p class="muted">只有系统无法安全判断“这是旧节点发生变化，还是全新节点”时才需要人工确认。</p><div id="conflictList"></div></div><div class="actions dialog-footer"><button type="button" id="cancelConflicts" class="ghost">关闭</button></div></dialog>
+<div id="toast"></div><script src="/assets/app.js?v=0307"></script>
 </body></html>

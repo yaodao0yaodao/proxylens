@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -834,13 +835,15 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 	// the resurrection path when an older parser used an endpoint-derived ID
 	// and the endpoint changed while the node was absent.
 	historicalNameIDs := map[string]string{}
-	rows, e = tx.QueryContext(ctx, `SELECT id,protocol,original_name FROM nodes WHERE task_id=? AND removed_at IS NOT NULL ORDER BY modified_at DESC,id`, taskID)
+	historicalEndpointIDs, historicalEndpointCounts := map[string]string{}, map[string]int{}
+	rows, e = tx.QueryContext(ctx, `SELECT id,protocol,server,port,original_name FROM nodes WHERE task_id=? AND removed_at IS NOT NULL ORDER BY modified_at DESC,id`, taskID)
 	if e != nil {
 		return e
 	}
 	for rows.Next() {
-		var id, protocol, name string
-		if e = rows.Scan(&id, &protocol, &name); e != nil {
+		var id, protocol, server, name string
+		var port int
+		if e = rows.Scan(&id, &protocol, &server, &port, &name); e != nil {
 			rows.Close()
 			return e
 		}
@@ -848,12 +851,19 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 		if _, exists := historicalNameIDs[key]; !exists {
 			historicalNameIDs[key] = id
 		}
+		endpointKey := historicalEndpointNameKey(protocol, server, port, name)
+		historicalEndpointCounts[endpointKey]++
+		if _, exists := historicalEndpointIDs[endpointKey]; !exists {
+			historicalEndpointIDs[endpointKey] = id
+		}
 	}
 	rows.Close()
 	incomingNameCounts := map[string]int{}
+	incomingEndpointCounts := map[string]int{}
 	for _, node := range nodes {
 		nameKey := node.Protocol + "\x00" + strings.ToLower(subscription.SanitizeName(node.OriginalName))
 		incomingNameCounts[nameKey]++
+		incomingEndpointCounts[historicalEndpointNameKey(node.Protocol, node.Server, node.Port, node.OriginalName)]++
 	}
 	seen := map[string]bool{}
 	for i := range nodes {
@@ -861,7 +871,45 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 		n.ConfigRevision = configRevision(n.Config)
 		raw, _ := json.Marshal(n.Config)
 		var existingID string
-		e = tx.QueryRowContext(ctx, `SELECT id FROM nodes WHERE task_id=? AND id=?`, taskID, n.ID).Scan(&existingID)
+		incomingID := n.ID
+		endpointKey := historicalEndpointNameKey(n.Protocol, n.Server, n.Port, n.OriginalName)
+		historicalID := historicalEndpointIDs[endpointKey]
+		// Providers sometimes add or remove zero-padding from a location number
+		// (JP011 -> JP11) while keeping the exact protocol and endpoint. A unique
+		// removed match is substantially stronger than a shared credential-based
+		// continuity key, so resurrect it without asking the user.
+		if historicalEndpointCounts[endpointKey] == 1 && incomingEndpointCounts[endpointKey] == 1 && historicalID != "" && !seen[historicalID] {
+			existingID, e = historicalID, nil
+			var incomingExists int
+			if queryErr := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE task_id=? AND id=? AND removed_at IS NULL`, taskID, incomingID).Scan(&incomingExists); queryErr != nil {
+				return queryErr
+			}
+			if incomingExists == 1 && incomingID != historicalID {
+				if mergeErr := mergeArchivedSeries(ctx, tx, historicalID, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if _, mergeErr := tx.ExecContext(ctx, `UPDATE measurements SET node_id=? WHERE node_id=?`, historicalID, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if _, mergeErr := tx.ExecContext(ctx, `DELETE FROM qualities WHERE node_id IN (?,?)`, historicalID, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if _, mergeErr := tx.ExecContext(ctx, `DELETE FROM quality_fields WHERE node_id IN (?,?)`, historicalID, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if _, mergeErr := tx.ExecContext(ctx, `UPDATE nodes SET removed_at=COALESCE(removed_at,?),modified_at=? WHERE id=?`, now, now, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if _, mergeErr := tx.ExecContext(ctx, `UPDATE node_fields SET removed_at=COALESCE(removed_at,?) WHERE node_id=?`, now, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if _, mergeErr := tx.ExecContext(ctx, `UPDATE identity_conflicts SET resolved_at=? WHERE task_id=? AND resolved_at IS NULL AND incoming_id=?`, now, taskID, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+			}
+		} else {
+			e = tx.QueryRowContext(ctx, `SELECT id FROM nodes WHERE task_id=? AND id=?`, taskID, incomingID).Scan(&existingID)
+		}
 		if errors.Is(e, sql.ErrNoRows) {
 			continuity := nodeContinuity(n.Protocol, n.Port, n.Config)
 			incomingName := strings.ToLower(subscription.SanitizeName(n.OriginalName))
@@ -1243,6 +1291,20 @@ func nodeContinuity(protocol string, port int, config map[string]any) string {
 	return subscription.ContinuityKey(copyConfig)
 }
 
+var identityNumberRun = regexp.MustCompile(`\d+`)
+
+func historicalEndpointNameKey(protocol, server string, port int, name string) string {
+	normalizedName := strings.ToLower(subscription.SanitizeName(name))
+	normalizedName = identityNumberRun.ReplaceAllStringFunc(normalizedName, func(value string) string {
+		trimmed := strings.TrimLeft(value, "0")
+		if trimmed == "" {
+			return "0"
+		}
+		return trimmed
+	})
+	return strings.ToLower(strings.TrimSpace(protocol)) + "\x00" + strings.ToLower(strings.TrimSuffix(strings.TrimSpace(server), ".")) + "\x00" + fmt.Sprint(port) + "\x00" + normalizedName
+}
+
 func configRevision(config map[string]any) string {
 	copyConfig := make(map[string]any, len(config))
 	for key, value := range config {
@@ -1387,6 +1449,23 @@ func (s *Store) UpdateNodeGeo(ctx context.Context, id, asn, asnServer, exitIP, c
 		return e
 	}
 	return tx.Commit()
+}
+
+// UpdateNodeExitIP records the latest observed egress without performing a
+// country lookup. Country metadata is filled for unknown nodes during a full
+// detection and refreshed for all nodes by the daily rule maintenance run.
+func (s *Store) UpdateNodeExitIP(ctx context.Context, id, exitIP string) error {
+	exitIP = strings.TrimSpace(exitIP)
+	if exitIP == "" {
+		return nil
+	}
+	_, err := s.DB.ExecContext(ctx, `UPDATE nodes SET exit_ip=?,modified_at=CASE WHEN exit_ip<>? THEN ? ELSE modified_at END WHERE id=?`, exitIP, exitIP, nowText(), id)
+	return err
+}
+
+func (s *Store) UpdateNodeASN(ctx context.Context, id, asn, asnServer string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE nodes SET asn=?,asn_server=?,modified_at=CASE WHEN asn<>? OR asn_server<>? THEN ? ELSE modified_at END WHERE id=?`, asn, asnServer, asn, asnServer, nowText(), id)
+	return err
 }
 
 func (s *Store) UpdateNodeDisplayName(ctx context.Context, id, displayName string) error {

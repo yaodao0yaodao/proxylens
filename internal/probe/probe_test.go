@@ -47,9 +47,12 @@ func TestGeoLookupFallsBackAndCoolsDownRateLimitedProvider(t *testing.T) {
 	if _, err = geo.Lookup(t.Context(), "203.0.113.9"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = geo.LookupFresh(t.Context(), "45.128.210.207"); err != nil {
+		t.Fatal(err)
+	}
 	mu.Lock()
 	defer mu.Unlock()
-	if calls["ipwho.is"] != 1 || calls["ipapi.co"] != 2 {
+	if calls["ipwho.is"] != 1 || calls["ipapi.co"] != 3 {
 		t.Fatalf("provider calls=%v", calls)
 	}
 }

@@ -603,7 +603,7 @@ type geoLookupResult struct {
 // all SQLite writes in the deterministic result loop below. The small bound is
 // deliberate: it speeds up large subscriptions without hammering the public
 // geolocation service from an OpenWrt device.
-func (s *Service) prefetchProbeGeography(ctx context.Context, nodes map[string]model.Node, results []model.Measurement) (map[string]geoLookupResult, map[string]geoLookupResult) {
+func (s *Service) prefetchProbeGeography(ctx context.Context, nodes map[string]model.Node, results []model.Measurement, refreshKnownCountries bool) (map[string]geoLookupResult, map[string]geoLookupResult) {
 	exits := make(map[string]geoLookupResult)
 	servers := make(map[string]geoLookupResult)
 	if s.Geo == nil {
@@ -612,6 +612,7 @@ func (s *Service) prefetchProbeGeography(ctx context.Context, nodes map[string]m
 	type job struct {
 		key      string
 		isServer bool
+		fresh    bool
 	}
 	var jobs []job
 	seenExit, seenServer := map[string]bool{}, map[string]bool{}
@@ -619,12 +620,13 @@ func (s *Service) prefetchProbeGeography(ctx context.Context, nodes map[string]m
 		if measurement.ExitIP == "" {
 			continue
 		}
-		if !seenExit[measurement.ExitIP] {
+		node, found := nodes[measurement.NodeID]
+		unknownCountry := strings.TrimSpace(node.CountryCode) == "" || strings.TrimSpace(node.Country) == ""
+		if (refreshKnownCountries || unknownCountry) && !seenExit[measurement.ExitIP] {
 			seenExit[measurement.ExitIP] = true
-			jobs = append(jobs, job{key: measurement.ExitIP})
+			jobs = append(jobs, job{key: measurement.ExitIP, fresh: refreshKnownCountries})
 		}
-		node := nodes[measurement.NodeID]
-		if node.Server != "" && (node.ASN == "" || node.ASNServer != node.Server) && !seenServer[node.Server] {
+		if found && node.Server != "" && (node.ASN == "" || node.ASNServer != node.Server) && !seenServer[node.Server] {
 			seenServer[node.Server] = true
 			jobs = append(jobs, job{key: node.Server, isServer: true})
 		}
@@ -645,6 +647,8 @@ func (s *Service) prefetchProbeGeography(ctx context.Context, nodes map[string]m
 				var err error
 				if item.isServer {
 					value, err = s.Geo.ResolveServer(ctx, item.key)
+				} else if item.fresh {
+					value, err = s.Geo.LookupFresh(ctx, item.key)
 				} else {
 					value, err = s.Geo.Lookup(ctx, item.key)
 				}
@@ -710,7 +714,7 @@ func (s *Service) runProbe(ctx context.Context, t model.Task, nodes []model.Node
 	for _, n := range nodes {
 		nodeByID[n.ID] = n
 	}
-	exitGeos, serverGeos := s.prefetchProbeGeography(ctx, nodeByID, results)
+	exitGeos, serverGeos := s.prefetchProbeGeography(ctx, nodeByID, results, false)
 	var succeeded []model.Node
 	for _, m := range results {
 		n := nodeByID[m.NodeID]
@@ -736,20 +740,29 @@ func (s *Service) runProbe(ctx context.Context, t model.Task, nodes []model.Node
 			succeeded = append(succeeded, n)
 		}
 		if (kind == "exit" || kind == "cycle") && m.ExitIP != "" {
+			if e = s.Store.UpdateNodeExitIP(ctx, n.ID, m.ExitIP); e != nil {
+				return succeeded, e
+			}
+			asn, asnServer := n.ASN, n.ASNServer
+			if asn == "" || asnServer != n.Server {
+				if serverLookup, found := serverGeos[n.Server]; found && serverLookup.err == nil {
+					asn, asnServer = serverLookup.value.ASN, n.Server
+					if e = s.Store.UpdateNodeASN(ctx, n.ID, asn, asnServer); e != nil {
+						return succeeded, e
+					}
+				} else {
+					s.Log.Warn("server ASN lookup failed", "node_id", n.ID, "server", n.Server, "error", serverLookup.err)
+				}
+			}
+			if strings.TrimSpace(n.CountryCode) != "" && strings.TrimSpace(n.Country) != "" {
+				continue
+			}
 			exitLookup, found := exitGeos[m.ExitIP]
 			if !found || exitLookup.err != nil {
 				s.Log.Warn("exit geo lookup failed", "ip", m.ExitIP, "error", exitLookup.err)
 				continue
 			}
 			exitGeo := exitLookup.value
-			asn, asnServer := n.ASN, n.ASNServer
-			if asn == "" || asnServer != n.Server {
-				if serverLookup, found := serverGeos[n.Server]; found && serverLookup.err == nil {
-					asn, asnServer = serverLookup.value.ASN, n.Server
-				} else {
-					s.Log.Warn("server ASN lookup failed", "node_id", n.ID, "server", n.Server, "error", serverLookup.err)
-				}
-			}
 			display := naming.DisplayName(exitGeo.CountryCode, exitGeo.Country, n.Number, n.Multiplier)
 			if e = s.Store.UpdateNodeGeo(ctx, n.ID, asn, asnServer, m.ExitIP, exitGeo.CountryCode, exitGeo.Country, display); e != nil {
 				return succeeded, e
@@ -757,6 +770,60 @@ func (s *Service) runProbe(ctx context.Context, t model.Task, nodes []model.Node
 		}
 	}
 	return succeeded, nil
+}
+
+// refreshRuleGeography refreshes country metadata from the most recently
+// observed exit IP. It intentionally runs only with the daily rule update;
+// frequent complete detections query the provider only for unknown nodes.
+func (s *Service) refreshRuleGeography(ctx context.Context) (map[string]bool, error) {
+	changedTasks := map[string]bool{}
+	if s.Geo == nil {
+		return changedTasks, nil
+	}
+	tasks, err := s.Store.Tasks(ctx)
+	if err != nil {
+		return changedTasks, err
+	}
+	for _, task := range tasks {
+		nodes, nodeErr := s.Store.Nodes(ctx, task.ID, false)
+		if nodeErr != nil {
+			return changedTasks, nodeErr
+		}
+		nodeByID := make(map[string]model.Node, len(nodes))
+		measurements := make([]model.Measurement, 0, len(nodes))
+		for _, node := range nodes {
+			nodeByID[node.ID] = node
+			if strings.TrimSpace(node.ExitIP) != "" {
+				measurements = append(measurements, model.Measurement{NodeID: node.ID, ExitIP: node.ExitIP})
+			}
+		}
+		exitGeos, serverGeos := s.prefetchProbeGeography(ctx, nodeByID, measurements, true)
+		for _, node := range nodes {
+			if strings.TrimSpace(node.ExitIP) == "" {
+				continue
+			}
+			exitLookup, found := exitGeos[node.ExitIP]
+			if !found || exitLookup.err != nil {
+				s.Log.Warn("rule maintenance country refresh failed", "task", task.ID, "node_id", node.ID, "ip", node.ExitIP, "error", exitLookup.err)
+				continue
+			}
+			asn, asnServer := node.ASN, node.ASNServer
+			if node.Server != "" && (asn == "" || asnServer != node.Server) {
+				if serverLookup, ok := serverGeos[node.Server]; ok && serverLookup.err == nil {
+					asn, asnServer = serverLookup.value.ASN, node.Server
+				}
+			}
+			geo := exitLookup.value
+			if strings.EqualFold(node.CountryCode, geo.CountryCode) && node.Country == geo.Country && node.ASN == asn && node.ASNServer == asnServer {
+				continue
+			}
+			if updateErr := s.Store.UpdateNodeGeo(ctx, node.ID, asn, asnServer, node.ExitIP, geo.CountryCode, geo.Country, ""); updateErr != nil {
+				return changedTasks, updateErr
+			}
+			changedTasks[task.ID] = true
+		}
+	}
+	return changedTasks, nil
 }
 
 func DisplayName(country string, number int64, multiplier float64) string {
@@ -1002,8 +1069,11 @@ func (s *Service) runDue(ctx context.Context) {
 		processesLast, _ := time.Parse(time.RFC3339Nano, rawProcesses)
 		rawAttempt, _ := s.Store.Setting(ctx, "download_processes_last_attempt")
 		processesAttempt, _ := time.Parse(time.RFC3339Nano, rawAttempt)
+		rawGeographyAttempt, _ := s.Store.Setting(ctx, "country_refresh_last_attempt")
+		geographyAttempt, _ := time.Parse(time.RFC3339Nano, rawGeographyAttempt)
 		rulesDue := last.IsZero() || time.Since(last) >= schedule.RulesInterval || !s.Rules.Complete()
 		processesDue := processesLast.IsZero() || time.Since(processesLast) >= schedule.RulesInterval || len(s.Rules.ProcessNames()) == 0
+		geographyDue := geographyAttempt.IsZero() || time.Since(geographyAttempt) >= schedule.RulesInterval
 		if rulesDue && !rulesAttempt.IsZero() && time.Since(rulesAttempt) < 15*time.Minute {
 			rulesDue = false
 		}
@@ -1019,6 +1089,7 @@ func (s *Service) runDue(ctx context.Context) {
 				defer s.end("__rules__")
 				var statuses []rules.Status
 				alertsChanged := false
+				geographyChanged := map[string]bool{}
 				if rulesDue {
 					_ = s.Store.PutSetting(runCtx, "rules_last_attempt", time.Now().UTC().Format(time.RFC3339Nano))
 					statuses = s.Rules.Update(runCtx)
@@ -1031,6 +1102,14 @@ func (s *Service) runDue(ctx context.Context) {
 								}
 								return nil
 							})
+						}
+					}
+					if geographyDue {
+						_ = s.Store.PutSetting(runCtx, "country_refresh_last_attempt", time.Now().UTC().Format(time.RFC3339Nano))
+						var geoErr error
+						geographyChanged, geoErr = s.refreshRuleGeography(runCtx)
+						if geoErr != nil {
+							s.Log.Warn("country refresh during rule maintenance failed", "error", geoErr)
 						}
 					}
 				}
@@ -1078,9 +1157,12 @@ func (s *Service) runDue(ctx context.Context) {
 					}
 					alertsChanged = true
 				}
-				if processesUpdated || alertsChanged {
+				if processesUpdated || alertsChanged || len(geographyChanged) > 0 {
 					if tasks, err := s.Store.Tasks(runCtx); err == nil {
 						for _, task := range tasks {
+							if !processesUpdated && !alertsChanged && !geographyChanged[task.ID] {
+								continue
+							}
 							if s.Running(task.ID) {
 								continue
 							}
