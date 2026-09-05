@@ -82,11 +82,14 @@ func (s *Store) migrate() error {
 			if err := s.migrateV11ToV12(); err != nil {
 				return err
 			}
-			return s.migrateV12ToV13()
+			if err := s.migrateV12ToV13(); err != nil {
+				return err
+			}
+			return s.migrateV13ToV14()
 		}
 	}
-	if version > 13 {
-		return fmt.Errorf("database schema version %d is newer than supported version 13", version)
+	if version > 14 {
+		return fmt.Errorf("database schema version %d is newer than supported version 14", version)
 	}
 	if version == 2 {
 		if err := s.migrateV2ToV3(); err != nil {
@@ -149,9 +152,15 @@ func (s *Store) migrate() error {
 		version = 12
 	}
 	if version == 12 {
-		return s.migrateV12ToV13()
+		if err := s.migrateV12ToV13(); err != nil {
+			return err
+		}
+		version = 13
 	}
 	if version == 13 {
+		return s.migrateV13ToV14()
+	}
+	if version == 14 {
 		return nil
 	}
 	const schema = `CREATE TABLE tasks (
@@ -222,12 +231,19 @@ CREATE TABLE IF NOT EXISTS identity_conflicts (
  incoming_id TEXT NOT NULL, incoming_name TEXT NOT NULL, candidate_ids_json TEXT NOT NULL,
  reason TEXT NOT NULL, detected_at TEXT NOT NULL, resolved_at TEXT
 );
+CREATE TABLE IF NOT EXISTS node_identity_aliases (
+ task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+ alias_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+ canonical_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+ merged_at TEXT NOT NULL, PRIMARY KEY(task_id,alias_id), CHECK(alias_id<>canonical_id)
+);
+CREATE INDEX IF NOT EXISTS idx_node_identity_aliases_canonical ON node_identity_aliases(task_id,canonical_id);
 CREATE TABLE IF NOT EXISTS artifacts (
  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, kind TEXT NOT NULL, content BLOB NOT NULL,
  sha256 TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(task_id, kind)
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-PRAGMA user_version=13;
+PRAGMA user_version=14;
 `
 	_, err := s.DB.Exec(schema)
 	return err
@@ -565,6 +581,28 @@ func (s *Store) migrateV12ToV13() error {
 	return nil
 }
 
+// migrateV13ToV14 makes an explicit node merge permanent. Previously the
+// discarded deterministic ID remained as an ordinary removed node, so a later
+// subscription refresh could resurrect it and strand the canonical node's
+// measurements again.
+func (s *Store) migrateV13ToV14() error {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, stmt := range []string{
+		`CREATE TABLE node_identity_aliases (task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,alias_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,canonical_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,merged_at TEXT NOT NULL,PRIMARY KEY(task_id,alias_id),CHECK(alias_id<>canonical_id))`,
+		`CREATE INDEX idx_node_identity_aliases_canonical ON node_identity_aliases(task_id,canonical_id)`,
+		`PRAGMA user_version=14`,
+	} {
+		if _, err = tx.Exec(stmt); err != nil {
+			return fmt.Errorf("migrate schema v14: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) migrateV2ToV3() error {
 	if _, err := s.DB.Exec(`PRAGMA foreign_keys=OFF`); err != nil {
 		return err
@@ -789,6 +827,44 @@ func (s *Store) SetTaskRunKeepError(ctx context.Context, id, kind string) error 
 	return err
 }
 
+func identityAliases(ctx context.Context, tx *sql.Tx, taskID string) (map[string]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT alias_id,canonical_id FROM node_identity_aliases WHERE task_id=?`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	aliases := map[string]string{}
+	for rows.Next() {
+		var aliasID, canonicalID string
+		if err = rows.Scan(&aliasID, &canonicalID); err != nil {
+			return nil, err
+		}
+		aliases[aliasID] = canonicalID
+	}
+	return aliases, rows.Err()
+}
+
+func canonicalIdentity(id string, aliases map[string]string) string {
+	seen := map[string]bool{}
+	for id != "" && aliases[id] != "" && !seen[id] {
+		seen[id] = true
+		id = aliases[id]
+	}
+	return id
+}
+
+func recordIdentityAlias(ctx context.Context, tx *sql.Tx, taskID, canonicalID, aliasID, mergedAt string) error {
+	if canonicalID == "" || aliasID == "" || canonicalID == aliasID {
+		return nil
+	}
+	// Flatten existing chains when their former canonical node is merged again.
+	if _, err := tx.ExecContext(ctx, `UPDATE node_identity_aliases SET canonical_id=?,merged_at=? WHERE task_id=? AND canonical_id=?`, canonicalID, mergedAt, taskID, aliasID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO node_identity_aliases(task_id,alias_id,canonical_id,merged_at) VALUES(?,?,?,?) ON CONFLICT(task_id,alias_id) DO UPDATE SET canonical_id=excluded.canonical_id,merged_at=excluded.merged_at`, taskID, aliasID, canonicalID, mergedAt)
+	return err
+}
+
 func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.Node, notices []model.Notice) error {
 	tx, e := s.DB.BeginTx(ctx, nil)
 	if e != nil {
@@ -796,6 +872,10 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 	}
 	defer tx.Rollback()
 	now := nowText()
+	aliases, e := identityAliases(ctx, tx, taskID)
+	if e != nil {
+		return e
+	}
 	type identityRow struct {
 		id, protocol, name, continuity string
 		port                           int
@@ -836,7 +916,7 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 	// and the endpoint changed while the node was absent.
 	historicalNameIDs := map[string]string{}
 	historicalEndpointIDs, historicalEndpointCounts := map[string]string{}, map[string]int{}
-	rows, e = tx.QueryContext(ctx, `SELECT id,protocol,server,port,original_name FROM nodes WHERE task_id=? AND removed_at IS NOT NULL ORDER BY modified_at DESC,id`, taskID)
+	rows, e = tx.QueryContext(ctx, `SELECT n.id,n.protocol,n.server,n.port,n.original_name FROM nodes n WHERE n.task_id=? AND n.removed_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM node_identity_aliases a WHERE a.task_id=n.task_id AND a.alias_id=n.id) ORDER BY n.modified_at DESC,n.id`, taskID)
 	if e != nil {
 		return e
 	}
@@ -868,6 +948,7 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 	seen := map[string]bool{}
 	for i := range nodes {
 		n := &nodes[i]
+		n.ID = canonicalIdentity(n.ID, aliases)
 		n.ConfigRevision = configRevision(n.Config)
 		raw, _ := json.Marshal(n.Config)
 		var existingID string
@@ -895,6 +976,9 @@ func (s *Store) UpsertNodes(ctx context.Context, taskID string, nodes []model.No
 					return mergeErr
 				}
 				if _, mergeErr := tx.ExecContext(ctx, `DELETE FROM quality_fields WHERE node_id IN (?,?)`, historicalID, incomingID); mergeErr != nil {
+					return mergeErr
+				}
+				if mergeErr := recordIdentityAlias(ctx, tx, taskID, historicalID, incomingID, now); mergeErr != nil {
 					return mergeErr
 				}
 				if _, mergeErr := tx.ExecContext(ctx, `UPDATE nodes SET removed_at=COALESCE(removed_at,?),modified_at=? WHERE id=?`, now, now, incomingID); mergeErr != nil {
@@ -1023,7 +1107,7 @@ func (s *Store) MergeRotatedNodeHistory(ctx context.Context, taskID string) (int
 		port                           int
 		active                         bool
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,protocol,port,original_name,config_json,removed_at FROM nodes WHERE task_id=?`, taskID)
+	rows, err := tx.QueryContext(ctx, `SELECT n.id,n.protocol,n.port,n.original_name,n.config_json,n.removed_at FROM nodes n WHERE n.task_id=? AND NOT EXISTS (SELECT 1 FROM node_identity_aliases a WHERE a.task_id=n.task_id AND a.alias_id=n.id)`, taskID)
 	if err != nil {
 		return 0, err
 	}
@@ -1080,6 +1164,9 @@ func (s *Store) MergeRotatedNodeHistory(ctx context.Context, taskID string) (int
 				if _, updateErr = tx.ExecContext(ctx, `DELETE FROM qualities WHERE node_id IN (?,?)`, activeID, item.id); updateErr != nil {
 					return moved, updateErr
 				}
+			}
+			if updateErr := recordIdentityAlias(ctx, tx, taskID, activeID, item.id, nowText()); updateErr != nil {
+				return moved, updateErr
 			}
 		}
 	}
@@ -1206,12 +1293,32 @@ func (s *Store) MergeNodes(ctx context.Context, taskID, targetID, sourceID strin
 		return err
 	}
 	defer tx.Rollback()
+	aliases, err := identityAliases(ctx, tx, taskID)
+	if err != nil {
+		return err
+	}
+	targetID = canonicalIdentity(targetID, aliases)
+	sourceID = canonicalIdentity(sourceID, aliases)
+	if targetID == sourceID {
+		return nil
+	}
 	var count int
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE task_id=? AND id IN (?,?)`, taskID, targetID, sourceID).Scan(&count); err != nil {
 		return err
 	}
 	if count != 2 {
 		return errors.New("both nodes must belong to the task")
+	}
+	var sourceProtocol, sourceServer, sourceName, sourceConfig, sourceRevision string
+	var sourcePort int
+	var sourceMultiplier float64
+	if err = tx.QueryRowContext(ctx, `SELECT protocol,server,port,original_name,multiplier,config_json,config_revision FROM nodes WHERE id=?`, sourceID).Scan(&sourceProtocol, &sourceServer, &sourcePort, &sourceName, &sourceMultiplier, &sourceConfig, &sourceRevision); err != nil {
+		return err
+	}
+	var targetNumber int64
+	var targetCountryCode, targetCountry, targetServer string
+	if err = tx.QueryRowContext(ctx, `SELECT number,country_code,country,server FROM nodes WHERE id=?`, targetID).Scan(&targetNumber, &targetCountryCode, &targetCountry, &targetServer); err != nil {
+		return err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE measurements SET node_id=? WHERE node_id=?`, targetID, sourceID); err != nil {
 		return err
@@ -1226,6 +1333,17 @@ func (s *Store) MergeNodes(ctx context.Context, taskID, targetID, sourceID strin
 		return err
 	}
 	now := nowText()
+	if err = recordIdentityAlias(ctx, tx, taskID, targetID, sourceID, now); err != nil {
+		return err
+	}
+	targetDisplay := naming.DisplayName(targetCountryCode, targetCountry, targetNumber, sourceMultiplier)
+	if _, err = tx.ExecContext(ctx, `UPDATE nodes SET protocol=?,server=?,port=?,original_name=?,display_name=?,multiplier=?,asn=CASE WHEN server=? THEN asn ELSE '' END,asn_server=CASE WHEN server=? THEN asn_server ELSE '' END,config_json=?,config_revision=?,modified_at=?,removed_at=NULL WHERE id=?`, sourceProtocol, sourceServer, sourcePort, sourceName, targetDisplay, sourceMultiplier, sourceServer, sourceServer, sourceConfig, sourceRevision, now, targetID); err != nil {
+		return err
+	}
+	canonical := model.Node{ID: targetID, OriginalName: sourceName, Multiplier: sourceMultiplier, CountryCode: targetCountryCode, Country: targetCountry}
+	if err = upsertFields(ctx, tx, canonical, now); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `UPDATE nodes SET removed_at=COALESCE(removed_at,?),modified_at=? WHERE id=?`, now, now, sourceID); err != nil {
 		return err
 	}

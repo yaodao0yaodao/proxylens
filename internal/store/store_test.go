@@ -147,7 +147,7 @@ PRAGMA user_version=6;`
 	}
 	defer st.Close()
 	var version int
-	if err = st.DB.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 13 {
+	if err = st.DB.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 14 {
 		t.Fatalf("schema version=%d err=%v", version, err)
 	}
 	var obsolete int
@@ -200,7 +200,7 @@ PRAGMA user_version=12;`
 	}
 	defer st.Close()
 	var version, count int
-	if err = st.DB.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 13 {
+	if err = st.DB.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 14 {
 		t.Fatalf("schema version=%d err=%v", version, err)
 	}
 	if err = st.DB.QueryRow(`SELECT COUNT(*) FROM measurements`).Scan(&count); err != nil || count != 1 {
@@ -525,8 +525,23 @@ func TestAmbiguousIdentityRequiresExplicitMerge(t *testing.T) {
 			t.Fatalf("identity candidate is missing full safe details: %+v", candidate)
 		}
 	}
+	yes := true
+	if err = st.AddMeasurement(ctx, model.Measurement{NodeID: "incoming-a", Kind: "cycle", Available: &yes, TestedAt: time.Now().Add(-time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = st.AddMeasurement(ctx, model.Measurement{NodeID: "incoming-renamed", Kind: "cycle", Available: &yes, TestedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
 	if err = st.MergeNodes(ctx, "t-conflict", "incoming-a", "incoming-renamed"); err != nil {
 		t.Fatal(err)
+	}
+	active, err := st.Nodes(ctx, "t-conflict", false)
+	if err != nil || len(active) != 1 || active[0].ID != "incoming-a" || active[0].Server != renamed.Server {
+		t.Fatalf("merge did not immediately activate the canonical identity: nodes=%+v err=%v", active, err)
+	}
+	measurements, err := st.Measurements(ctx, "incoming-a", time.Time{})
+	if err != nil || len(measurements) != 2 {
+		t.Fatalf("merged measurement history missing: rows=%d err=%v", len(measurements), err)
 	}
 	conflicts, err = st.IdentityConflicts(ctx, "t-conflict")
 	if err != nil {
@@ -536,6 +551,20 @@ func TestAmbiguousIdentityRequiresExplicitMerge(t *testing.T) {
 		if conflict.ResolvedAt == nil {
 			t.Fatalf("unresolved conflict after merge: %+v", conflict)
 		}
+	}
+	// The subscription continues to emit the discarded deterministic ID. It
+	// must resolve to the user's chosen permanent identity instead of reviving
+	// the discarded node on the next refresh.
+	if err = st.UpsertNodes(ctx, "t-conflict", []model.Node{renamed}, nil); err != nil {
+		t.Fatal(err)
+	}
+	active, err = st.Nodes(ctx, "t-conflict", false)
+	if err != nil || len(active) != 1 || active[0].ID != "incoming-a" || active[0].Server != renamed.Server {
+		t.Fatalf("merged identity did not remain canonical: nodes=%+v err=%v", active, err)
+	}
+	var canonicalID string
+	if err = st.DB.QueryRow(`SELECT canonical_id FROM node_identity_aliases WHERE task_id=? AND alias_id=?`, "t-conflict", "incoming-renamed").Scan(&canonicalID); err != nil || canonicalID != "incoming-a" {
+		t.Fatalf("permanent identity alias missing: canonical=%q err=%v", canonicalID, err)
 	}
 }
 

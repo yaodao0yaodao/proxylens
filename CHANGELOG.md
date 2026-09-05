@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Persist explicit and automatic node-identity merges as canonical aliases, so
+  later subscription refreshes cannot revive a discarded duplicate or detach
+  its accumulated quality history.
+
 ## 0.3.2 - 2026-09-05
 
 - Disable subscription copying until the task has generated its first sing-box
