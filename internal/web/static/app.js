@@ -35,6 +35,12 @@ function fmtTime(value) {
   return Number.isNaN(date.valueOf()) || date.getFullYear() < 2000 ? '尚未' : date.toLocaleString();
 }
 
+function hasTime(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.valueOf()) && date.getFullYear() >= 2000;
+}
+
 function fmtBytes(value) {
   const bytes = Number(value) || 0;
   if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GiB`;
@@ -106,6 +112,9 @@ function taskCard(task) {
   const stage = task.runtime?.stage || '空闲';
   const title = task.name || '正在自动获取名称…';
   const url = publishURL(task.sing_box_url);
+  const copySubscriptionButton = hasTime(task.last_sing_box_at)
+    ? `<button data-copy="${esc(url)}">复制 sing-box 订阅</button>`
+    : '<button class="ghost" disabled>正在生成配置</button>';
   const notices = (task.notices || []).map(item => item.name).filter(Boolean).join('；') || '暂无';
   const statusClass = state === 'running' ? 'running' : state === 'paused' ? 'paused' : 'idle';
   const continuousButton = task.runtime?.continuous
@@ -129,7 +138,7 @@ function taskCard(task) {
     </div>
     <div class="task-actions">
       <div class="task-action-row">${continuousButton}${state === 'paused' ? `<button data-start="${task.id}">启动</button>` : `<button class="ghost" data-pause="${task.id}">暂停</button>`}</div>
-      <div class="task-action-row"><button class="ghost" data-nodes="${task.id}">查看质量</button><button class="ghost" data-conflicts="${task.id}">节点去重</button><button class="ghost" data-task-config="${task.id}">任务设置</button><button data-copy="${esc(url)}">复制 sing-box 订阅</button></div>
+      <div class="task-action-row"><button class="ghost" data-nodes="${task.id}">查看质量</button><button class="ghost" data-conflicts="${task.id}">节点去重</button><button class="ghost" data-task-config="${task.id}">任务设置</button>${copySubscriptionButton}</div>
     </div>`;
   return article;
 }
@@ -159,7 +168,7 @@ async function loadTasks(showError = true) {
 
 const qualityValue = (row, key) => {
   const quality = row.quality || {};
-  const value = {availability: quality.availability, latency: quality.average_latency_ms, priority: quality.priority}[key];
+  const value = {availability: quality.availability, detections: quality.availability_raw, latency: quality.average_latency_ms, priority: quality.priority}[key];
   return key === 'latency' && !(value > 0) ? null : Number(value) || 0;
 };
 
@@ -168,7 +177,10 @@ function renderNodes() {
     const av = qualityValue(a, nodeSort.key), bv = qualityValue(b, nodeSort.key);
     if (av === null) return bv === null ? 0 : 1;
     if (bv === null) return -1;
-    return nodeSort.direction * (av - bv);
+    const comparison = av - bv;
+    if (comparison || nodeSort.key !== 'detections') return nodeSort.direction * comparison;
+    const aSamples = Number(a.quality?.samples) || 0, bSamples = Number(b.quality?.samples) || 0;
+    return nodeSort.direction * (aSamples - bSamples);
   });
   document.querySelectorAll('.sort').forEach(button => {
     button.classList.toggle('active', button.dataset.sort === nodeSort.key);
@@ -176,7 +188,9 @@ function renderNodes() {
   });
   $('#nodeRows').innerHTML = rows.map(row => {
     const node = row.node, quality = row.quality || {};
-    return `<tr><td>${esc(node.display_name || '出口未识别')}</td><td>${esc(node.original_name)}</td><td>${esc(node.protocol || '-')}</td><td>${((quality.availability || 0) * 100).toFixed(1)}% (${quality.samples || 0})</td><td>${quality.average_latency_ms ? `${quality.average_latency_ms.toFixed(0)} ms` : '-'}</td><td>${(quality.priority || 0).toFixed(1)}</td></tr>`;
+    const total = Math.max(0, Number(quality.samples) || 0);
+    const successful = Math.max(0, Math.min(total, Math.round((Number(quality.availability_raw) || 0) * total)));
+    return `<tr><td>${esc(node.display_name || '出口未识别')}</td><td>${esc(node.original_name)}</td><td>${esc(node.protocol || '-')}</td><td>${successful}/${total}</td><td>${((quality.availability || 0) * 100).toFixed(1)}%</td><td>${quality.average_latency_ms ? `${quality.average_latency_ms.toFixed(0)} ms` : '-'}</td><td>${(quality.priority || 0).toFixed(1)}</td></tr>`;
   }).join('');
 }
 
@@ -278,7 +292,7 @@ document.addEventListener('click', async event => {
 });
 
 $('#login').onclick = () => { token = $('#token').value.trim(); localStorage.setItem('proxylens-token', token); loadTasks(); };
-$('#readLocalToken').onclick = async () => {
+async function readLocalToken(showError = true) {
   try {
     const response = await fetch('/api/local-token');
     if (!response.ok) throw new Error('此页面不是服务所在的本机地址，请从 LuCI 查看管理令牌');
@@ -286,8 +300,13 @@ $('#readLocalToken').onclick = async () => {
     $('#token').value = token;
     localStorage.setItem('proxylens-token', token);
     await loadTasks();
-  } catch (error) { toast(error.message); }
-};
+    return true;
+  } catch (error) {
+    if (showError) toast(error.message);
+    return false;
+  }
+}
+$('#readLocalToken').onclick = () => readLocalToken(true);
 $('#token').addEventListener('keydown', event => { if (event.key === 'Enter') $('#login').click(); });
 $('#logs').onclick = () => downloadAPI('logs', 'proxylens.log').catch(error => toast(error.message));
 $('#backup').onclick = () => downloadAPI('backup', 'proxylens-backup.sqlite').catch(error => toast(error.message));
@@ -372,4 +391,7 @@ $('#taskSettingsForm').onsubmit = async event => {
 };
 
 setAuthenticated(false);
-if (token) loadTasks(false);
+(async () => {
+  if (await readLocalToken(false)) return;
+  if (token) loadTasks(false);
+})();

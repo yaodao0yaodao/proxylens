@@ -45,10 +45,10 @@ Run these commands as root:
 
 ```sh
 cd /tmp
-wget -O /etc/apk/keys/proxylens-apk-public.pem https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.1/proxylens-apk-public.pem
-wget -O proxylens-0.3.1-r1_aarch64_cortex-a53.apk https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.1/proxylens-0.3.1-r1_aarch64_cortex-a53.apk
-echo '1006d19223557eb861ab6ce8904ffe312b6bb78bfac077ed9606e5628cfcbf0d  proxylens-0.3.1-r1_aarch64_cortex-a53.apk' | sha256sum -c -
-apk add ./proxylens-0.3.1-r1_aarch64_cortex-a53.apk
+wget -O /etc/apk/keys/proxylens-apk-public.pem https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.2/proxylens-apk-public.pem
+wget -O proxylens-0.3.2-r1_aarch64_cortex-a53.apk https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.2/proxylens-0.3.2-r1_aarch64_cortex-a53.apk
+echo '6892b6228ca07b0153676efa533a7800a9723cc8d7013bd397ebff57c49221d8  proxylens-0.3.2-r1_aarch64_cortex-a53.apk' | sha256sum -c -
+apk add ./proxylens-0.3.2-r1_aarch64_cortex-a53.apk
 ```
 
 Later upgrades signed by the same private key do not require the public key to
@@ -61,6 +61,19 @@ Open **Services → ProxyLens** in LuCI or browse to
 ```sh
 uci -q get proxylens.main.admin_token
 ```
+
+## Windows
+
+Download `ProxyLens-Windows-x64-0.3.2.zip` from the
+[v0.3.2 release](https://github.com/yaodao0yaodao/proxylens/releases/tag/v0.3.2),
+extract the complete archive, and run `ProxyLens.exe`. The archive includes the
+matching `sing-box.exe`; keep both files together.
+
+The default browser opens after the first successful launch. ProxyLens then
+runs silently in the system tray. Double-click the tray icon or choose
+**Show ProxyLens** to reopen the management page; the menu also changes the
+port or exits the application. The local management page reads the local token
+automatically.
 
 ## Profile publishing and compatibility
 

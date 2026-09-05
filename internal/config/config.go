@@ -27,12 +27,12 @@ type Config struct {
 }
 
 func Load() Config {
-	data := env("PROXYLENS_DATA_DIR", "/var/lib/proxylens")
+	data := env("PROXYLENS_DATA_DIR", defaultDataDir())
 	c := Config{
-		Listen: env("PROXYLENS_LISTEN", "0.0.0.0:9099"), DataDir: data,
+		Listen: env("PROXYLENS_LISTEN", defaultListen(data)), DataDir: data,
 		DBPath: os.Getenv("PROXYLENS_DATABASE"), LogPath: filepath.Join(data, "proxylens.log"),
 		AdminToken: os.Getenv("PROXYLENS_ADMIN_TOKEN"), PublicBaseURL: os.Getenv("PROXYLENS_PUBLIC_BASE_URL"),
-		SingBoxPath: env("PROXYLENS_SING_BOX", "/usr/lib/proxylens/sing-box"), ProbePortStart: envInt("PROXYLENS_PROBE_PORT_START", 19000),
+		SingBoxPath: env("PROXYLENS_SING_BOX", defaultSingBoxPath()), ProbePortStart: envInt("PROXYLENS_PROBE_PORT_START", 19000),
 		MaxLogBytes: int64(envInt("PROXYLENS_MAX_LOG_MB", 8)) << 20, MaxDatabaseBytes: int64(envInt("PROXYLENS_MAX_DB_MB", 96)) << 20,
 		Schedule: model.Schedule{DetectionInterval: time.Hour, RulesInterval: 24 * time.Hour},
 	}

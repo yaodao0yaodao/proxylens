@@ -104,6 +104,57 @@ func TestGenerateHasNoNullOutboundsAndClientSpecificDownloadRule(t *testing.T) {
 		t.Fatal("game downloads must be DIRECT before the broader Steam proxy rule")
 	}
 	assertSteamDepotLocalityRules(t, v)
+	var desktopConfig map[string]any
+	if e = json.Unmarshal(carton.Content, &desktopConfig); e != nil {
+		t.Fatal(e)
+	}
+	assertMicrosoftStoreDirectRules(t, desktopConfig)
+}
+
+func assertMicrosoftStoreDirectRules(t *testing.T, config map[string]any) {
+	t.Helper()
+	check := func(rules []any, dns bool) {
+		storeDirect, foreignProxy := -1, -1
+		proxyOnly := map[string]bool{
+			"displaycatalog.mp.microsoft.com": true,
+			"purchase.md.mp.microsoft.com":    true,
+			"licensing.mp.microsoft.com":      true,
+		}
+		for i, raw := range rules {
+			rule := raw.(map[string]any)
+			for _, suffix := range anyStrings(rule["domain_suffix"]) {
+				if proxyOnly[suffix] {
+					t.Fatalf("Microsoft Store account/catalog endpoint must not be in the DIRECT rule: %s", suffix)
+				}
+				if suffix == "storeedge.microsoft.com" {
+					if dns && rule["server"] == "dns-cn" || !dns && rule["outbound"] == "DIRECT" {
+						storeDirect = i
+					}
+				}
+			}
+			for _, set := range anyStrings(rule["rule_set"]) {
+				if set == "geosite-geolocation-not-cn" {
+					foreignProxy = i
+				}
+			}
+		}
+		if storeDirect < 0 || !dns && (foreignProxy < 0 || storeDirect > foreignProxy) {
+			t.Fatalf("Microsoft Store DIRECT rule missing or ordered too late: store=%d foreign=%d dns=%v", storeDirect, foreignProxy, dns)
+		}
+	}
+	check(config["dns"].(map[string]any)["rules"].([]any), true)
+	check(config["route"].(map[string]any)["rules"].([]any), false)
+}
+
+func anyStrings(value any) []string {
+	items, _ := value.([]any)
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if text, ok := item.(string); ok {
+			out = append(out, text)
+		}
+	}
+	return out
 }
 
 func assertSteamDepotLocalityRules(t *testing.T, config map[string]any) {

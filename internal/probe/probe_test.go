@@ -8,6 +8,12 @@ import (
 	"testing"
 )
 
+func TestOpenWrtProbeProcessBatchLimit(t *testing.T) {
+	if maxNodesPerProcess < 8 || maxNodesPerProcess > 24 {
+		t.Fatalf("unsafe OpenWrt probe process batch limit: %d", maxNodesPerProcess)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }

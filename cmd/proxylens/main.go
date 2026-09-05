@@ -23,6 +23,9 @@ import (
 var version = "dev"
 
 func main() {
+	if runRestartHelper() {
+		return
+	}
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-V" || os.Args[1] == "version") {
 		fmt.Printf("proxylens %s\n", version)
 		return
@@ -70,7 +73,7 @@ func main() {
 	}()
 	go maintenance(ctx, st, cfg.MaxDatabaseBytes, log)
 	log.Info("ProxyLens started", "version", version, "listen", cfg.Listen, "data_dir", cfg.DataDir, "admin_token_generated", os.Getenv("PROXYLENS_ADMIN_TOKEN") == "")
-	if e = httpServer.ListenAndServe(); e != nil && !errors.Is(e, http.ErrServerClosed) {
+	if e = runPlatform(ctx, cancel, httpServer, cfg, log); e != nil && !errors.Is(e, http.ErrServerClosed) {
 		log.Error("HTTP server", "error", e)
 		os.Exit(1)
 	}

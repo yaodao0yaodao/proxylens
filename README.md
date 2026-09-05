@@ -41,10 +41,10 @@ SFA 是 sing-box 官方 Android 客户端。Carton 是适用于 Windows 和 Linu
 
 ```sh
 cd /tmp
-wget -O /etc/apk/keys/proxylens-apk-public.pem https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.1/proxylens-apk-public.pem
-wget -O proxylens-0.3.1-r1_aarch64_cortex-a53.apk https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.1/proxylens-0.3.1-r1_aarch64_cortex-a53.apk
-echo '1006d19223557eb861ab6ce8904ffe312b6bb78bfac077ed9606e5628cfcbf0d  proxylens-0.3.1-r1_aarch64_cortex-a53.apk' | sha256sum -c -
-apk add ./proxylens-0.3.1-r1_aarch64_cortex-a53.apk
+wget -O /etc/apk/keys/proxylens-apk-public.pem https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.2/proxylens-apk-public.pem
+wget -O proxylens-0.3.2-r1_aarch64_cortex-a53.apk https://github.com/yaodao0yaodao/proxylens/releases/download/v0.3.2/proxylens-0.3.2-r1_aarch64_cortex-a53.apk
+echo '6892b6228ca07b0153676efa533a7800a9723cc8d7013bd397ebff57c49221d8  proxylens-0.3.2-r1_aarch64_cortex-a53.apk' | sha256sum -c -
+apk add ./proxylens-0.3.2-r1_aarch64_cortex-a53.apk
 ```
 
 以后安装由同一私钥签名的升级包，不需要再次安装公钥。私钥不会上传到
@@ -56,6 +56,16 @@ GitHub，也不应安装到路由器或提供给其他人。
 ```sh
 uci -q get proxylens.main.admin_token
 ```
+
+## Windows 运行
+
+从 [v0.3.2 Release](https://github.com/yaodao0yaodao/proxylens/releases/tag/v0.3.2)
+下载 `ProxyLens-Windows-x64-0.3.2.zip` 并完整解压，直接运行 `ProxyLens.exe`。
+压缩包已经包含匹配的 `sing-box.exe`，不要只复制其中一个文件。
+
+首次成功启动会自动打开默认浏览器，以后程序常驻系统托盘并完全静默运行。
+双击托盘图标或右键选择“显示软件”可重新打开管理页；右键还可以修改端口或退出。
+本机管理页会自动读取本机令牌，无需手动填写。
 
 ## 配置发布与客户端兼容
 

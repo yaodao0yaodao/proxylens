@@ -7,7 +7,7 @@
 <section id="overview" hidden><div id="storage" class="muted">正在读取数据库空间…</div><div id="softwareNotices" class="notice-lines"></div></section>
 <section id="auth"><h2>管理令牌</h2><p>验证后才能新建或管理任务。Windows/Linux 本机运行时可以直接读取；OpenWrt 请在 LuCI 中查看。</p><label>管理令牌<input id="token" type="password" autocomplete="current-password"></label><div class="actions"><button id="readLocalToken" type="button" class="ghost">读取本机令牌</button><button id="login">进入</button></div></section>
 <section id="tasks" hidden><div class="toolbar"><h2>任务</h2><div class="toolbar-actions"><button id="backup" class="ghost">下载数据库</button><button id="logs" class="ghost">下载日志</button></div></div><div id="cards"></div></section>
-<section id="nodes" hidden><button id="back" class="ghost">← 返回任务</button><h2 id="nodeTitle">节点质量</h2><div class="table"><table><thead><tr><th>节点</th><th>原始节点名称</th><th>协议</th><th><button class="sort" data-sort="availability">可用率</button></th><th><button class="sort" data-sort="latency">体验延迟*</button></th><th><button class="sort" data-sort="priority">优先级</button></th></tr></thead><tbody id="nodeRows"></tbody></table></div><small>* 800 ms及以上计为不可用；Web展示实际出口稳态延迟，公共抖动和物理距离只在评分中处理。点击表头可排序。</small></section>
+<section id="nodes" hidden><button id="back" class="ghost">← 返回任务</button><h2 id="nodeTitle">节点质量</h2><div class="table"><table><thead><tr><th>节点</th><th>原始节点名称</th><th>协议</th><th><button class="sort" data-sort="detections">检测次数</button></th><th><button class="sort" data-sort="availability">可用率</button></th><th><button class="sort" data-sort="latency">体验延迟*</button></th><th><button class="sort" data-sort="priority">优先级</button></th></tr></thead><tbody id="nodeRows"></tbody></table></div><small>* 800 ms及以上计为不可用；Web展示实际出口稳态延迟，公共抖动和物理距离只在评分中处理。检测次数显示成功次数/总数，按两者的比值排序；点击表头可排序。</small></section>
 </main>
 <dialog id="newTask"><form id="newTaskForm"><h2>新建任务</h2><div class="settings-grid">
 <label class="full-row">名称（可选）<input id="name" placeholder="留空后从订阅自动获取"></label>
@@ -34,5 +34,5 @@
 <dialog id="versionDialog" class="fixed-footer-dialog"><div class="dialog-scroll"><h2>版本信息</h2><div id="versionInfo">正在读取…</div></div><div class="actions dialog-footer"><button type="button" id="closeVersion" class="ghost">关闭</button></div></dialog>
 <dialog id="continuousDialog"><h2 class="error">触发4小时不间断完整检测</h2><p class="error">可能触发机场风控导致数据异常，只在任务新建急用时推荐，稳定运行后无实际意义。</p><div class="actions"><button type="button" id="cancelContinuous" class="ghost">取消</button><button type="button" id="confirmContinuous" class="danger">确定</button></div></dialog>
 <dialog id="conflictDialog" class="fixed-footer-dialog"><div class="dialog-scroll"><h2 id="conflictTitle">节点去重</h2><p class="muted">只有系统无法安全判断“这是旧节点发生变化，还是全新节点”时才需要人工确认。</p><div id="conflictList"></div></div><div class="actions dialog-footer"><button type="button" id="cancelConflicts" class="ghost">关闭</button></div></dialog>
-<div id="toast"></div><script src="/assets/app.js?v=0307"></script>
+<div id="toast"></div><script src="/assets/app.js?v=0311"></script>
 </body></html>

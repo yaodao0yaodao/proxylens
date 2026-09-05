@@ -10,7 +10,9 @@ import (
 // Version reports the configured sing-box core version. ProxyLens deliberately
 // does not download, replace, or otherwise manage the core executable.
 func Version(ctx context.Context, path string) (string, error) {
-	output, err := exec.CommandContext(ctx, path, "version").Output()
+	command := exec.CommandContext(ctx, path, "version")
+	configureCommand(command)
+	output, err := command.Output()
 	if err != nil {
 		return "", err
 	}

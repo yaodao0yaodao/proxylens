@@ -248,7 +248,7 @@ func GenerateWithOptions(client Client, nodes []model.Node, notices []model.Noti
 	}
 	config := map[string]any{
 		"log":          map[string]any{"level": "warn", "timestamp": true},
-		"dns":          dnsConfig(opt.GooglePlayMode, opt.DirectDomains),
+		"dns":          dnsConfig(client, opt.GooglePlayMode, opt.DirectDomains),
 		"inbounds":     inbounds,
 		"outbounds":    outbounds,
 		"route":        routeConfig(client, opt.GooglePlayMode, opt.RuleBaseURL, opt.DirectDomains, opt.DownloadProcesses),
@@ -453,10 +453,31 @@ func tunInbound(client Client) map[string]any {
 	}
 	return m
 }
-func dnsConfig(mode string, directDomains []string) map[string]any {
+
+var microsoftDeliveryDirectSuffixes = []string{
+	// Regional Store edge APIs are needed to obtain the locally usable Store
+	// page/package path. They are not Microsoft account login endpoints.
+	"storeedge.microsoft.com",
+	"storeedgefd.dsx.mp.microsoft.com",
+	// Microsoft Store/Windows Update payload and Delivery Optimization CDNs.
+	"delivery.mp.microsoft.com",
+	"windowsupdate.com",
+	"update.microsoft.com",
+	"do.dsp.mp.microsoft.com",
+}
+
+func dnsConfig(client Client, mode string, directDomains []string) map[string]any {
 	// Game download CDNs use the local resolver for a nearby mainland edge;
 	// Steam account/store/community traffic uses consistent remote DNS+egress.
-	rules := []any{
+	var rules []any
+	if carton(client) {
+		// Microsoft Store and Windows Update use region-aware CDN endpoints.
+		// Resolving them through an overseas proxy can select an edge which resets
+		// TLS or cannot serve the client's region, even when the Store catalog is
+		// otherwise reachable. Keep this desktop-only path local and DIRECT.
+		rules = append(rules, map[string]any{"domain_suffix": microsoftDeliveryDirectSuffixes, "action": "route", "server": "dns-cn"})
+	}
+	rules = append(rules,
 		// The maintained game-download set enumerates many cache hostnames and
 		// inevitably lags newly allocated cache numbers. Cover the whole depot
 		// namespace before the broader Steam rule sends it to remote DNS. Local
@@ -464,7 +485,7 @@ func dnsConfig(mode string, directDomains []string) map[string]any {
 		map[string]any{"domain_suffix": []string{"steamcontent.com"}, "action": "route", "server": "dns-cn"},
 		map[string]any{"rule_set": []string{"geosite-game-download"}, "action": "route", "server": "dns-cn"},
 		map[string]any{"rule_set": []string{"geosite-steam"}, "action": "route", "server": "dns-remote"},
-	}
+	)
 	if len(directDomains) > 0 {
 		// The subscription publisher can resolve to the router's public address.
 		// Resolve it locally so a client on the LAN can use NAT reflection without
@@ -487,6 +508,9 @@ func routeConfig(client Client, mode, ruleBase string, directDomains, downloaded
 		// system/VPN proxy is active. Otherwise an unclassified DDNS name falls
 		// through to the proxy selector and commonly loops or returns 502.
 		rules = append(rules, map[string]any{"domain": directDomains, "action": "route", "outbound": "DIRECT"})
+	}
+	if carton(client) {
+		rules = append(rules, map[string]any{"domain_suffix": microsoftDeliveryDirectSuffixes, "action": "route", "outbound": "DIRECT"})
 	}
 	if carton(client) {
 		processes := []string{

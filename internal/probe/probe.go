@@ -39,6 +39,12 @@ type BatchOptions struct {
 	Timeout time.Duration
 }
 
+// Keep each temporary sing-box instance small enough for low-memory OpenWrt
+// devices. A single process with dozens of inbounds/outbounds can spend more
+// than the readiness window initializing and cause the whole cycle to be
+// discarded even though the nodes themselves are healthy.
+const maxNodesPerProcess = 16
+
 func (e *Engine) acquire(ctx context.Context) error {
 	e.gateOnce.Do(func() { e.gate = make(chan struct{}, 1); e.gate <- struct{}{} })
 	select {
@@ -83,6 +89,7 @@ func (e *Engine) WithHTTPClient(ctx context.Context, node model.Node, fn func(*h
 		return err
 	}
 	check := exec.CommandContext(ctx, e.SingBoxPath, "check", "-c", path)
+	configureCommand(check)
 	if output, checkErr := check.CombinedOutput(); checkErr != nil {
 		return fmt.Errorf("sing-box rejected internal proxy: %w: %s", checkErr, strings.TrimSpace(string(output)))
 	}
@@ -119,9 +126,17 @@ func (e *Engine) Batch(ctx context.Context, nodes []model.Node, opt BatchOptions
 		return nil, err
 	}
 	defer e.release()
-	results, err := e.batchOnce(ctx, nodes, opt)
-	if err != nil {
-		return nil, err
+	results := make([]model.Measurement, 0, len(nodes))
+	for start := 0; start < len(nodes); start += maxNodesPerProcess {
+		end := start + maxNodesPerProcess
+		if end > len(nodes) {
+			end = len(nodes)
+		}
+		batchResults, err := e.batchOnce(ctx, nodes[start:end], opt)
+		if err != nil {
+			return nil, fmt.Errorf("probe batch %d-%d of %d: %w", start+1, end, len(nodes), err)
+		}
+		results = append(results, batchResults...)
 	}
 	byID := make(map[string]model.Node, len(nodes))
 	for _, node := range nodes {
@@ -194,6 +209,7 @@ func (e *Engine) batchOnce(ctx context.Context, nodes []model.Node, opt BatchOpt
 			return nil, err
 		}
 		check := exec.CommandContext(ctx, e.SingBoxPath, "check", "-c", path)
+		configureCommand(check)
 		out, checkErr := check.CombinedOutput()
 		if checkErr == nil {
 			break
