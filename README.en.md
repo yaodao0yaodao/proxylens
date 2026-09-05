@@ -30,7 +30,7 @@ LuCI and Web management. The core remains portable. Further reading:
 
 ## Recommended clients
 
-- **Android:** [Official SFA (sing-box for Android) documentation and downloads](https://sing-box.sagernet.org/installation/clients/sfa/)
+- **Android:** [Official SFA (sing-box for Android) documentation and downloads](https://sing-box.sagernet.org/clients/android/)
 - **Windows, Linux, and CachyOS:** [Carton releases and downloads](https://github.com/821869798/carton/releases)
 
 SFA is the official sing-box Android client. Carton is a third-party sing-box

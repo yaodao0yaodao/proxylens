@@ -28,7 +28,7 @@ sing-box，都可以从这条地址取得适合自己的配置。
 
 ## 推荐客户端
 
-- **Android 手机：**[SFA（sing-box for Android）官方说明与下载](https://sing-box.sagernet.org/installation/clients/sfa/)
+- **Android 手机：**[SFA（sing-box for Android）官方说明与下载](https://sing-box.sagernet.org/zh/clients/android/)
 - **Windows、Linux、CachyOS 电脑：**[Carton 发布与下载](https://github.com/821869798/carton/releases)
 
 SFA 是 sing-box 官方 Android 客户端。Carton 是适用于 Windows 和 Linux 的
