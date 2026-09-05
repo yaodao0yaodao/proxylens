@@ -507,7 +507,7 @@ func routingCustomizations() []map[string]string {
 		{"name": "Steam", "scope": "桌面端", "based_on": "MetaCubeX Steam 与游戏平台下载", "behavior": "登录、商店、社区代理；steamcontent.com 和游戏下载域名直连并使用本地 DNS，让 CDN 地点跟随用户网络。"},
 		{"name": "Microsoft Store 与 Windows Update", "scope": "桌面端", "based_on": "Microsoft 官方必需端点，ProxyLens 修正", "behavior": "商店区域/下载位置接口、安装包 CDN、Delivery Optimization 和 Windows Update 直连并使用本地 DNS；账号登录、购买、授权、商品目录及其他商店服务继续代理。"},
 		{"name": "TUN 本地下载应用", "scope": "Carton、原生 sing-box Windows/Linux", "based_on": "内置跨平台进程名 + blackmatrix7/ios_rule_script Download.list", "behavior": "TUN 模式下，迅雷、qBittorrent、aria2、Transmission、µTorrent、BitComet、FDM、WebTorrent 等本地下载程序按进程直连。Android 不应用进程名规则。"},
-		{"name": "TUN 与局域网代理入站", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "始终生成 IPv4/IPv6 TUN；桌面配置启用 strict_route。按全局或任务设置生成可选 mixed 局域网代理入站、监听端口和账号认证。"},
+		{"name": "TUN 与局域网代理入站", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "始终生成 IPv4/IPv6 TUN；桌面配置启用 strict_route，明确的 Linux/CachyOS UA 额外启用 auto_redirect。按全局或任务设置生成可选 mixed 局域网代理入站、监听端口和账号认证。"},
 		{"name": "DNS 分流", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "国内/私有/下载 CDN 使用本地 DNS，境外与代理业务使用远程 DNS；优先 IPv4，避免错误 IPv6 路径影响体验。"},
 		{"name": "订阅自访问防回环", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "ProxyLens 公网/DDNS 订阅域名直连并用本地 DNS；局域网访问订阅时自动改写为路由器局域网规则地址。"},
 		{"name": "规则启动与缓存", "scope": "全端", "based_on": "MetaCubeX 原版 SRS，由 ProxyLens 缓存/转发", "behavior": "避免 raw.githubusercontent.com 在大陆网络被错误解析；1.13 使用 DIRECT download_detour，1.14+ 使用显式 HTTP Client，防止首次启动死循环。"},
@@ -522,8 +522,8 @@ func clientCompatibility() []map[string]string {
 		{"client": "SFA / sing-box for Android 1.13", "ua": "SFA/1.13… 或 sing-box/1.13… Android", "output": "SFA 1.13 配置", "notes": "使用 1.13 规则下载字段。"},
 		{"client": "Carton（Windows/Linux）1.14.x", "ua": "Carton/… sing-box/1.14…", "output": "桌面 1.14 配置", "notes": "含 TUN 本地下载应用直连。"},
 		{"client": "Carton（未报告核心版本或 1.13）", "ua": "Carton/…", "output": "桌面 1.13 配置", "notes": "为兼容 Carton 默认 UA，安全回退到 1.13。"},
-		{"client": "原生 sing-box CLI（Windows/Linux）1.14.x", "ua": "sing-box/1.14…（不能含 Android）", "output": "复用桌面 1.14 配置", "notes": "需管理员/root 权限运行 TUN；无需重复生成同内容的原核配置。"},
-		{"client": "原生 sing-box CLI（Windows/Linux）1.13", "ua": "sing-box/1.13…（不能含 Android）", "output": "复用桌面 1.13 配置", "notes": "需管理员/root 权限运行 TUN。"},
+		{"client": "原生 sing-box CLI（Windows/Linux）1.14.x", "ua": "sing-box/1.14… Linux 或 Windows", "output": "复用桌面 1.14 配置", "notes": "需管理员/root 权限运行 TUN；Linux/CachyOS UA 自动启用 auto_redirect。"},
+		{"client": "原生 sing-box CLI（Windows/Linux）1.13", "ua": "sing-box/1.13… Linux 或 Windows", "output": "复用桌面 1.13 配置", "notes": "需管理员/root 权限运行 TUN；Linux/CachyOS UA 自动启用 auto_redirect。"},
 		{"client": "Mihomo / Clash 客户端", "ua": "任意", "output": "不提供输出配置", "notes": "Mihomo/Clash YAML 仅作为输入订阅格式。"},
 		{"client": "sing-box for Apple platforms", "ua": "SFI/SFM 等", "output": "当前不提供", "notes": "尚未生成 Apple 平台专用配置，也未做实机验收。"},
 		{"client": "无法识别或未经验证的版本", "ua": "缺少 UA/版本，版本 < 1.13 或 > 1.14", "output": "HTTP 406，不发送配置", "notes": "避免客户端下载到不兼容格式；新版本经验证后再放行。"},
@@ -635,6 +635,14 @@ func (s *Server) subscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b = rewriteRuleBaseForLAN(b, s.PublicBaseURL, r)
+	b, e = enableLinuxAutoRedirect(b, kind, r.UserAgent())
+	if e != nil {
+		if s.Log != nil {
+			s.Log.Error("prepare linux subscription", "task", t.ID, "error", e)
+		}
+		writeJSON(w, 500, map[string]string{"error": "failed to prepare Linux configuration"})
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s-%s.json"`, safeFilename(t.Name), kind))
 	w.Header().Set("Last-Modified", updated.UTC().Format(http.TimeFormat))
@@ -648,6 +656,45 @@ func (s *Server) subscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(b)
+}
+
+// enableLinuxAutoRedirect applies the sing-box recommendation only when the
+// requesting desktop client explicitly identifies Linux. auto_redirect is not
+// a harmless no-op on Windows: official Windows cores reject it during TUN
+// initialization. Android UAs may also contain "Linux", so the selected
+// artifact must be a desktop artifact as an additional guard.
+func enableLinuxAutoRedirect(content []byte, kind, ua string) ([]byte, error) {
+	lower := strings.ToLower(ua)
+	if !strings.HasPrefix(kind, "carton") || strings.Contains(lower, "android") ||
+		(!strings.Contains(lower, "linux") && !strings.Contains(lower, "cachyos")) {
+		return content, nil
+	}
+	var config map[string]any
+	if err := json.Unmarshal(content, &config); err != nil {
+		return nil, err
+	}
+	inbounds, ok := config["inbounds"].([]any)
+	if !ok {
+		return content, nil
+	}
+	changed := false
+	for _, value := range inbounds {
+		inbound, ok := value.(map[string]any)
+		if !ok || inbound["type"] != "tun" {
+			continue
+		}
+		inbound["auto_route"] = true
+		inbound["auto_redirect"] = true
+		changed = true
+	}
+	if !changed {
+		return content, nil
+	}
+	result, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(result, '\n'), nil
 }
 
 func rewriteRuleBaseForLAN(content []byte, publicBase string, r *http.Request) []byte {

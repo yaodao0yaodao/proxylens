@@ -73,10 +73,12 @@ Web 页面支持创建多个任务，每个任务只有一个私有 sing-box 订
 
 - SFA 或带 Android 标识的 sing-box 1.13/1.14 User-Agent 获得 Android 配置。
 - Carton 或普通 sing-box 1.13/1.14 User-Agent 获得桌面配置。
-- Windows/Linux 原生 sing-box 可以复用对应版本的 Carton 配置。
+- Windows/Linux 原生 sing-box 可以复用对应版本的 Carton 配置；UA 明确包含
+  `Linux` 或 `CachyOS` 时，TUN 会额外启用 Linux 推荐的 `auto_redirect`。
 - 无法识别、版本过旧或尚未验证的客户端返回 HTTP 406，避免误下错误配置。
 
-Carton 在 Windows 和 Linux/CachyOS 上使用同一份配置。桌面 TUN 模式的
+Carton 在 Windows 和 Linux/CachyOS 上复用同一份基础配置，并在发布时应用
+安全的平台差异。桌面 TUN 模式的
 大流量下载程序使用 DIRECT；Google Play、Steam、DNS、节点和国家分流由
 ProxyLens 针对中国大陆网络进行组合与修正。
 

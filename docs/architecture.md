@@ -89,12 +89,12 @@ ASN metadata is bound to the current server/domain and is resolved again only
 after that server value changes. Exit IP, country and generated node name are
 refreshed during every detection cycle.
 
-Carton is emitted as one dual-platform Windows/Linux artifact. Website, DNS,
-country and node-selection rules are identical; only application bypass rules
-are platform-sensitive, so their `process_name` lists include both `.exe` and
-Linux executable variants. A platform split is unnecessary unless a future
-client exposes an OS marker in its subscription User-Agent or requires
-different kernel features.
+Carton is stored as one dual-platform Windows/Linux artifact. Website, DNS,
+country and node-selection rules are identical, and application bypass rules
+include both `.exe` and Linux executable variants. At publication time an
+explicit desktop `Linux` or `CachyOS` User-Agent enables `auto_redirect` on the
+TUN inbound. Windows, Android, and unknown-platform requests retain the base
+artifact because Windows sing-box rejects Linux auto-redirect initialization.
 
 Subscription attempts and successful refreshes have separate timestamps. A
 failure never advances the last-success value; after six continuous hours the

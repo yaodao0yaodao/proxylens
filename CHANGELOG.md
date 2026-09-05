@@ -5,6 +5,9 @@
 - Persist explicit and automatic node-identity merges as canonical aliases, so
   later subscription refreshes cannot revive a discarded duplicate or detach
   its accumulated quality history.
+- Enable `auto_redirect` for subscription requests that explicitly identify a
+  Linux/CachyOS desktop, while keeping Windows, Android, and unknown-platform
+  configurations compatible.
 
 ## 0.3.2 - 2026-09-05
 

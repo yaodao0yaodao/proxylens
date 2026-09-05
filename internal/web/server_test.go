@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -19,9 +20,41 @@ func TestArtifactForUA(t *testing.T) {
 	}
 }
 
+func TestLinuxDesktopSubscriptionEnablesAutoRedirect(t *testing.T) {
+	input := []byte(`{"inbounds":[{"type":"tun","tag":"tun-in","auto_route":true},{"type":"mixed"}]}`)
+	for _, tc := range []struct {
+		name, kind, ua string
+		want           bool
+	}{
+		{"linux core", "carton-1.14", "sing-box/1.14.2 Linux", true},
+		{"cachyos core", "carton", "sing-box/1.13.19 CachyOS", true},
+		{"linux carton", "carton-1.14", "Carton/0.5 sing-box/1.14.2 Linux", true},
+		{"windows core", "carton-1.14", "sing-box/1.14.2 Windows", false},
+		{"unknown desktop", "carton-1.14", "sing-box/1.14.2", false},
+		{"android linux token", "sfa", "sing-box/1.14.2 Linux Android", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := enableLinuxAutoRedirect(input, tc.kind, tc.ua)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var config struct {
+				Inbounds []map[string]any `json:"inbounds"`
+			}
+			if err = json.Unmarshal(got, &config); err != nil {
+				t.Fatal(err)
+			}
+			enabled, _ := config.Inbounds[0]["auto_redirect"].(bool)
+			if enabled != tc.want {
+				t.Fatalf("auto_redirect=%v want %v: %s", enabled, tc.want, got)
+			}
+		})
+	}
+}
+
 func TestVersionDescriptionsCoverCustomRoutingAndRawCore(t *testing.T) {
 	custom := fmt.Sprint(routingCustomizations())
-	for _, want := range []string{"TUN 本地下载应用", "TUN 与局域网代理入站", "Google Play", "Steam", "规则启动与缓存"} {
+	for _, want := range []string{"TUN 本地下载应用", "TUN 与局域网代理入站", "auto_redirect", "Google Play", "Steam", "规则启动与缓存"} {
 		if !strings.Contains(custom, want) {
 			t.Fatalf("custom routing description is missing %q", want)
 		}
