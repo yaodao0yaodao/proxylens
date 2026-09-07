@@ -23,6 +23,8 @@ sing-box，都可以从这条地址取得适合自己的配置。
 核心程序保留跨平台能力。详细资料：
 
 - [架构说明](docs/architecture.md)
+- [维护交接与当前状态](docs/HANDOFF.md)
+- [构建、验证与发布](docs/MAINTENANCE.md)
 - [OpenWrt 说明](docs/openwrt.md)
 - [触发器、超时、重试与并发清单](docs/runtime-events.md)
 

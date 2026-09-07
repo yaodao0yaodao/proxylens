@@ -25,6 +25,8 @@ The first release primarily targets 64-bit OpenWrt/ImmortalWrt and includes
 LuCI and Web management. The core remains portable. Further reading:
 
 - [Architecture](docs/architecture.md)
+- [Maintainer handoff and current status (Chinese)](docs/HANDOFF.md)
+- [Build, verification and release](docs/MAINTENANCE.md)
 - [OpenWrt notes](docs/openwrt.md)
 - [Trigger, timeout, retry, and concurrency inventory](docs/runtime-events.md)
 
@@ -83,9 +85,12 @@ subscription URL:
 - SFA and sing-box 1.13/1.14 User-Agents marked as Android receive the Android profile.
 - Carton and plain sing-box 1.13/1.14 User-Agents receive the desktop profile.
 - Native sing-box on Windows/Linux can reuse the matching Carton profile.
+  Explicit desktop Linux/CachyOS UAs additionally enable TUN `auto_redirect`;
+  Android and unknown operating systems do not.
 - Unknown, outdated, or unverified clients receive HTTP 406 to prevent an incompatible download.
 
-Carton uses the same profile on Windows and Linux/CachyOS. Large download
+Carton shares a base profile across Windows and Linux/CachyOS, with explicit
+Linux UA adjustments applied when serving the subscription. Large download
 applications use DIRECT in desktop TUN mode. ProxyLens combines and adjusts
 Google Play, Steam, DNS, node, and country routing for mainland China networks.
 

@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for target in linux/amd64 linux/arm64; do
+          for target in linux/amd64 linux/arm64 windows/amd64; do
             GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 \
-              go build -trimpath -o /tmp/proxylens-${target#*/} ./cmd/proxylens
+              go build -trimpath -o /tmp/proxylens-${target%/*}-${target#*/} ./cmd/proxylens
           done

@@ -7,8 +7,8 @@ ProxyLens separates portable code from platform glue:
 2. A probe adapter starts one short-lived sing-box process for a whole batch.
    Every listener is pinned to exactly one outbound, so availability, RTT and
    public IP are measurements of the **node exit**.
-3. OpenWrt supplies procd/UCI/LuCI integration. A later Windows GUI can embed or
-   supervise the same core and use its API without changing the database model.
+3. OpenWrt supplies procd/UCI/LuCI integration. Windows already supplies a native
+   tray launcher and browser management UI around the same portable core.
 
 The primary node identity uses a subscription-provided short ID or another
 protocol-stable unique identifier whenever one exists. For protocols without a
@@ -22,6 +22,10 @@ monotonic within each measured exit country and are never recycled. Each
 country starts at 1; an unknown exit remains unnumbered. A country change
 consumes a new number from that country's durable sequence. Schema v2 safely
 renumbers legacy rows once and preserves sequences independently from deletion.
+
+Schema v14 persists merges in `node_identity_aliases`: subsequent incoming IDs
+resolve to the canonical node before matching. Alias sources are excluded from
+historical resurrection and alias chains are flattened when merged again.
 
 Only original source name, measured exit country and traffic multiplier have
 append-only change history in `node_fields`. Their active version is never
@@ -86,8 +90,9 @@ claimed as server-side data unless a future client reports per-outbound
 counters explicitly.
 
 ASN metadata is bound to the current server/domain and is resolved again only
-after that server value changes. Exit IP, country and generated node name are
-refreshed during every detection cycle.
+after that server value changes. Exit IP is refreshed during detection. Country
+lookups during detection are limited to unknown countries; rule maintenance
+also refreshes known exit geography. Names follow updated measured geography.
 
 Carton is stored as one dual-platform Windows/Linux artifact. Website, DNS,
 country and node-selection rules are identical, and application bypass rules

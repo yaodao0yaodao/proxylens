@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add maintainer handoff, build/deployment guidance and agent instructions;
+  correct stale platform documentation and include Windows in CI cross-builds.
 - Persist explicit and automatic node-identity merges as canonical aliases, so
   later subscription refreshes cannot revive a discarded duplicate or detach
   its accumulated quality history.
