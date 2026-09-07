@@ -84,6 +84,10 @@ Carton 在 Windows 和 Linux/CachyOS 上复用同一份基础配置，并在发�
 大流量下载程序使用 DIRECT；Google Play、Steam、DNS、节点和国家分流由
 ProxyLens 针对中国大陆网络进行组合与修正。
 
+Linux TUN 下，Steam 主进程直连以让连接管理器、下载区域 CellID 和内容服务器
+目录跟随本地网络；商店和社区使用的 `steamwebhelper` 仍走代理。更改订阅规则后
+需要完全退出并重新启动 Steam，才能丢弃旧的 CM 会话和下载服务器列表。
+
 ## 默认检测与数据保留
 
 - 默认每 60 分钟执行一次完整检测，可设置为 15 分钟至 7 天。

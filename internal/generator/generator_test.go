@@ -28,10 +28,16 @@ func TestGenerateHasNoNullOutboundsAndClientSpecificDownloadRule(t *testing.T) {
 	if strings.Contains(string(sfa.Content), "qbittorrent") || !strings.Contains(string(carton.Content), "qbittorrent") {
 		t.Fatal("download process rule is not Carton-only")
 	}
-	for _, process := range []string{"steamwebhelper", "transmission-gtk", "fdm.bin", "webtorrent-desktop"} {
+	for _, process := range []string{"steam", "steamcmd", "steamwebhelper", "Steam.exe", "transmission-gtk", "fdm.bin", "webtorrent-desktop"} {
 		if process == "steamwebhelper" {
 			if strings.Contains(string(carton.Content), process) {
 				t.Fatal("Steam process-level DIRECT would bypass login/store/community proxy routing")
+			}
+			continue
+		}
+		if process == "Steam.exe" {
+			if strings.Contains(string(carton.Content), process) {
+				t.Fatal("Windows Steam process must be handled by the Windows system-proxy integration")
 			}
 			continue
 		}

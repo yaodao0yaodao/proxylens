@@ -504,7 +504,7 @@ func routingCustomizations() []map[string]string {
 		{"name": "中国大陆与私有网络", "scope": "全端", "based_on": "MetaCubeX geosite/geoip", "behavior": "私有地址和中国大陆域名/IP 直连；已知非中国域名优先代理，避免被错误 GeoIP 结果覆盖。"},
 		{"name": "日本限定服务", "scope": "全端", "based_on": "MetaCubeX Abema、DMM、Niconico、Pixiv、TVer、Radiko、NHK", "behavior": "置于最高业务优先级，统一交给日本自动选择。"},
 		{"name": "Google Play", "scope": "SFA/Android 为主，全端可用", "based_on": "MetaCubeX Google Play 与 Google Play@cn", "behavior": "稳定模式全部代理；节省模式仅中国 CDN 直连，其余代理；services.googleapis.cn 强制代理。"},
-		{"name": "Steam", "scope": "桌面端", "based_on": "MetaCubeX Steam 与游戏平台下载", "behavior": "登录、商店、社区代理；steamcontent.com 和游戏下载域名直连并使用本地 DNS，让 CDN 地点跟随用户网络。"},
+		{"name": "Steam", "scope": "桌面端", "based_on": "MetaCubeX Steam 与游戏平台下载，ProxyLens Linux 进程修正", "behavior": "Linux 的 Steam 主进程直连以保持 CM、CellID 与下载目录的本地性，steamwebhelper 商店/社区继续代理；steamcontent.com 和游戏下载域名直连并使用本地 DNS。Windows 系统代理由客户端绕过规则单独处理。"},
 		{"name": "Microsoft Store 与 Windows Update", "scope": "桌面端", "based_on": "Microsoft 官方必需端点，ProxyLens 修正", "behavior": "商店区域/下载位置接口、安装包 CDN、Delivery Optimization 和 Windows Update 直连并使用本地 DNS；账号登录、购买、授权、商品目录及其他商店服务继续代理。"},
 		{"name": "TUN 本地下载应用", "scope": "Carton、原生 sing-box Windows/Linux", "based_on": "内置跨平台进程名 + blackmatrix7/ios_rule_script Download.list", "behavior": "TUN 模式下，迅雷、qBittorrent、aria2、Transmission、µTorrent、BitComet、FDM、WebTorrent 等本地下载程序按进程直连。Android 不应用进程名规则。"},
 		{"name": "TUN 与局域网代理入站", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "始终生成 IPv4/IPv6 TUN；桌面配置启用 strict_route，明确的 Linux/CachyOS UA 额外启用 auto_redirect。按全局或任务设置生成可选 mixed 局域网代理入站、监听端口和账号认证。"},

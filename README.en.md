@@ -94,6 +94,12 @@ Linux UA adjustments applied when serving the subscription. Large download
 applications use DIRECT in desktop TUN mode. ProxyLens combines and adjusts
 Google Play, Steam, DNS, node, and country routing for mainland China networks.
 
+In Linux TUN mode, the native Steam process uses DIRECT so its connection
+manager, download-region CellID, and content-server directory follow the local
+network.  The `steamwebhelper` process used by the store and community remains
+proxied.  Fully exit and restart Steam after a subscription rule change to
+discard the previous CM session and content-server list.
+
 ## Default detection and retention
 
 - A full detection cycle runs every 60 minutes by default and is configurable from 15 minutes to seven days.

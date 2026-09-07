@@ -100,6 +100,12 @@ include both `.exe` and Linux executable variants. At publication time an
 explicit desktop `Linux` or `CachyOS` User-Agent enables `auto_redirect` on the
 TUN inbound. Windows, Android, and unknown-platform requests retain the base
 artifact because Windows sing-box rejects Linux auto-redirect initialization.
+The Linux `steam` and `steamcmd` processes are DIRECT so the native client's CM
+session, selected CellID, content-server directory, and depot traffic observe
+the local network. `steamwebhelper` is intentionally absent: its store and
+community traffic continues through the normal Steam proxy rule. The Windows
+system-proxy path has no process metadata and needs a client-side bypass rather
+than pretending this Linux process rule applies there.
 
 Subscription attempts and successful refreshes have separate timestamps. A
 failure never advances the last-success value; after six continuous hours the

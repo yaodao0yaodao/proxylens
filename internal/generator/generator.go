@@ -516,6 +516,15 @@ func routeConfig(client Client, mode, ruleBase string, directDomains, downloaded
 		processes := []string{
 			// Windows and Linux/CachyOS share one Carton configuration. Keep both
 			// executable-name variants here because Carton's default UA has no OS.
+			//
+			// On Linux the native Steam process owns the CM session, CellID and
+			// ContentServerDirectory request.  If it follows the broad Steam proxy
+			// rule, Steam can keep the configured mainland download region but rank
+			// Hong Kong/Tokyo caches from the proxy exit.  The store/community UI is
+			// a separate steamwebhelper process and deliberately remains proxied.
+			// Do not add Steam.exe here: Windows system-proxy handling is maintained
+			// separately and a process rule is not available on that inbound.
+			"steam", "steamcmd",
 			"aria2c.exe", "aria2c",
 			"qbittorrent.exe", "qbittorrent",
 			"Thunder.exe", "DownloadService.exe",

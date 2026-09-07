@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep the Linux Steam client process DIRECT in TUN mode so its CM session,
+  download-region CellID, and content-server directory use the local network;
+  keep `steamwebhelper` store/community traffic proxied.
+
 - Add maintainer handoff, build/deployment guidance and agent instructions;
   correct stale platform documentation and include Windows in CI cross-builds.
 - Persist explicit and automatic node-identity merges as canonical aliases, so
