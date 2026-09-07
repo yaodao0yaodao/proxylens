@@ -97,8 +97,12 @@ Google Play, Steam, DNS, node, and country routing for mainland China networks.
 In Linux TUN mode, the native Steam process uses DIRECT so its connection
 manager, download-region CellID, and content-server directory follow the local
 network.  The `steamwebhelper` process used by the store and community remains
-proxied.  Fully exit and restart Steam after a subscription rule change to
-discard the previous CM session and content-server list.
+proxied.  On Windows the desktop profile pins the Steam connection-manager
+namespace `steamserver.net` DIRECT with local DNS, because the system-proxy
+inbound has no process metadata and the domain rule is the matching layer;
+store and community traffic stays proxied.  Fully exit and restart Steam after
+a subscription rule change to discard the previous CM session and
+content-server list.
 
 ## Default detection and retention
 

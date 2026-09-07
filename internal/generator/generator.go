@@ -466,6 +466,14 @@ var microsoftDeliveryDirectSuffixes = []string{
 	"do.dsp.mp.microsoft.com",
 }
 
+var steamSessionDirectSuffixes = []string{
+	// steamserver.net is the connection-manager namespace: the CM logon
+	// session decides the effective cell and ships the content-server
+	// directory, so its egress must observe the local network or Steam ranks
+	// Hong Kong/Tokyo/Taipei caches above the configured mainland region.
+	"steamserver.net",
+}
+
 func dnsConfig(client Client, mode string, directDomains []string) map[string]any {
 	// Game download CDNs use the local resolver for a nearby mainland edge;
 	// Steam account/store/community traffic uses consistent remote DNS+egress.
@@ -476,6 +484,11 @@ func dnsConfig(client Client, mode string, directDomains []string) map[string]an
 		// TLS or cannot serve the client's region, even when the Store catalog is
 		// otherwise reachable. Keep this desktop-only path local and DIRECT.
 		rules = append(rules, map[string]any{"domain_suffix": microsoftDeliveryDirectSuffixes, "action": "route", "server": "dns-cn"})
+		// Desktop Carton on Windows normally runs as the system proxy, so the
+		// Steam client hands its WebSocket CM session to the mixed inbound
+		// instead of a TUN device. Resolve the CM namespace locally so the
+		// session and its content-server directory follow the client network.
+		rules = append(rules, map[string]any{"domain_suffix": steamSessionDirectSuffixes, "action": "route", "server": "dns-cn"})
 	}
 	rules = append(rules,
 		// The maintained game-download set enumerates many cache hostnames and
@@ -547,6 +560,17 @@ func routeConfig(client Client, mode, ruleBase string, directDomains, downloaded
 		rules = append(rules, map[string]any{"process_name": processes, "action": "route", "outbound": "DIRECT"})
 	}
 	rules = append(rules, map[string]any{"rule_set": []string{"geosite-abema", "geosite-dmm", "geosite-niconico", "geosite-pixiv", "geosite-tver", "geosite-radiko", "geosite-nhk"}, "action": "route", "outbound": "日本自动选择"})
+	if carton(client) {
+		// Windows system-proxy mode is the desktop counterpart of the Linux
+		// process rule above: the mixed inbound has no process metadata, so
+		// the CM session must be pinned DIRECT by domain instead. Carton also
+		// rewrites ProxyOverride from its own constant on every proxy enable,
+		// which makes a client-side registry bypass non-durable; the
+		// subscription is the layer that survives. Store and community live in
+		// other namespaces and stay proxied, and Steam.exe still must not be
+		// added to the process list: it would never match this inbound.
+		rules = append(rules, map[string]any{"domain_suffix": steamSessionDirectSuffixes, "action": "route", "outbound": "DIRECT"})
+	}
 	// Domain rules, not the Steam process, distinguish large depot downloads
 	// from login/store/community requests made by the same executable.
 	rules = append(rules,

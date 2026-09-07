@@ -5,6 +5,10 @@
 - Keep the Linux Steam client process DIRECT in TUN mode so its CM session,
   download-region CellID, and content-server directory use the local network;
   keep `steamwebhelper` store/community traffic proxied.
+- Pin the Steam `steamserver.net` connection-manager namespace DIRECT with
+  local DNS in desktop Carton profiles, where the system-proxy mixed inbound
+  has no process metadata; the CM session and content-server directory now
+  follow the local network on Windows too.
 
 - Add maintainer handoff, build/deployment guidance and agent instructions;
   correct stale platform documentation and include Windows in CI cross-builds.

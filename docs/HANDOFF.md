@@ -94,9 +94,12 @@ Linux 差异在 `web.enableLinuxAutoRedirect` 的响应阶段加入，数据库�
 5. Steam 修复前的 Linux `content_log.txt` 显示：下载区域已明确设为武汉
    CellID 159，但目录仍选择 `hkg1`/`tyo3`。当前修复只把 Linux 主进程
    `steam`/`steamcmd` 直连，保留 `steamwebhelper` 代理。客户端更新订阅后必须
-   完全退出并重启 Steam，再以日志中的 CellID 和实际源站做验收。Windows
-   系统代理模式有同类现象，但该入站没有进程元数据，应由 Windows 维护者在
-   PAC/系统代理绕过层处理，不能加入 `Steam.exe` 规则冒充已修复。
+   完全退出并重启 Steam，再以日志中的 CellID 和实际源站做验收。Windows 系统
+   代理模式有同类现象：该入站没有进程元数据，桌面 Carton 配置已把 CM 域名
+   `steamserver.net` 固定直连并使用本地 DNS（同提交纳入 Unreleased），实测
+   `connection_log.txt` 显示 CM 会话曾被代理出口带偏到 `tyo3`/`hkg1`。注意
+   Carton 每次启用系统代理都会用内置常量覆写 `ProxyOverride`，因此客户端
+   注册表绕过不可持久，订阅规则才是持久层；`Steam.exe` 进程规则仍然禁止。
 6. `go test` 中有依赖本地 sing-box 文件的条件跳过；新机器没有该文件时，
    测试通过不代表全部真实配置都校验过。
 7. 流量/完整配置/数据库含秘密。管理任务响应有授权后使用的源地址；公开

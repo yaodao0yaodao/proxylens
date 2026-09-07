@@ -85,8 +85,11 @@ Carton 在 Windows 和 Linux/CachyOS 上复用同一份基础配置，并在发�
 ProxyLens 针对中国大陆网络进行组合与修正。
 
 Linux TUN 下，Steam 主进程直连以让连接管理器、下载区域 CellID 和内容服务器
-目录跟随本地网络；商店和社区使用的 `steamwebhelper` 仍走代理。更改订阅规则后
-需要完全退出并重新启动 Steam，才能丢弃旧的 CM 会话和下载服务器列表。
+目录跟随本地网络；商店和社区使用的 `steamwebhelper` 仍走代理。Windows 桌面
+配置则将 Steam 连接管理器域名 `steamserver.net` 指定直连并使用本地 DNS，
+系统代理入站没有进程信息，域名规则即为对应的修复层；商店和社区继续代理。
+更改订阅规则后需要完全退出并重新启动 Steam，才能丢弃旧的 CM 会话和下载
+服务器列表。
 
 ## 默认检测与数据保留
 

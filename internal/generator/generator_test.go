@@ -109,12 +109,44 @@ func TestGenerateHasNoNullOutboundsAndClientSpecificDownloadRule(t *testing.T) {
 	if gameDownload < 0 || steam < 0 || gameDownload > steam {
 		t.Fatal("game downloads must be DIRECT before the broader Steam proxy rule")
 	}
+	if strings.Contains(string(sfa.Content), "steamserver.net") {
+		t.Fatal("Steam session DIRECT rule must stay desktop-only")
+	}
 	assertSteamDepotLocalityRules(t, v)
 	var desktopConfig map[string]any
 	if e = json.Unmarshal(carton.Content, &desktopConfig); e != nil {
 		t.Fatal(e)
 	}
+	assertSteamSessionLocalityRules(t, desktopConfig)
 	assertMicrosoftStoreDirectRules(t, desktopConfig)
+}
+
+func assertSteamSessionLocalityRules(t *testing.T, config map[string]any) {
+	t.Helper()
+	check := func(rules []any, dns bool) {
+		sessionDirect, steamProxy := -1, -1
+		for i, raw := range rules {
+			rule := raw.(map[string]any)
+			for _, suffix := range anyStrings(rule["domain_suffix"]) {
+				if suffix == "steamserver.net" {
+					if dns && rule["server"] == "dns-cn" || !dns && rule["outbound"] == "DIRECT" {
+						sessionDirect = i
+					}
+				}
+			}
+			sets, _ := rule["rule_set"].([]any)
+			for _, set := range sets {
+				if set == "geosite-steam" {
+					steamProxy = i
+				}
+			}
+		}
+		if sessionDirect < 0 || steamProxy < 0 || sessionDirect > steamProxy {
+			t.Fatalf("Steam session locality rule missing or ordered after broad Steam rule: session=%d steam=%d dns=%v", sessionDirect, steamProxy, dns)
+		}
+	}
+	check(config["dns"].(map[string]any)["rules"].([]any), true)
+	check(config["route"].(map[string]any)["rules"].([]any), false)
 }
 
 func assertMicrosoftStoreDirectRules(t *testing.T, config map[string]any) {
