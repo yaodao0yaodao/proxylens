@@ -23,6 +23,14 @@
   升级前已通过 `/api/backup` 保存一致性备份，旧二进制也保留在设备的
   `/root/proxylens-backups/`。三个生产任务的 Linux Carton 1.14 配置均通过
   路由器 sing-box 1.14.0 `check`；这仍不等同于 Steam 下载实机验收。
+- 同日将桌面 CM 域名修复部署为 `0.3.3-dev-steam-desktop-fix`（提交
+  `61893f1`），ARM64 二进制 SHA256 为
+  `421901fa6cb490acbc123f93ea18968a50dc10b36e92183256af24341bdf4da7`。
+  升级前一致性备份为
+  `/root/proxylens-backups/proxylens-20260908-100301-before-steam-desktop-fix.sqlite`，
+  同时间戳旧二进制也已保留。三个生产任务各自生成的 Windows Carton、Linux
+  Carton 和 Android/SFA 配置（共 9 份）均通过路由器 sing-box 1.14.0
+  `check`；桌面两类包含 `steamserver.net`，Android 不包含。
 
 ## 当前产品要求（覆盖已废弃的早期方案）
 

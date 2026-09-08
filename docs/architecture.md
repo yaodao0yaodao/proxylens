@@ -104,8 +104,11 @@ The Linux `steam` and `steamcmd` processes are DIRECT so the native client's CM
 session, selected CellID, content-server directory, and depot traffic observe
 the local network. `steamwebhelper` is intentionally absent: its store and
 community traffic continues through the normal Steam proxy rule. The Windows
-system-proxy path has no process metadata, so desktop profiles instead pin the
-connection-manager namespace `steamserver.net` DIRECT with local DNS: the CM
+system-proxy path has no process metadata, so every desktop Carton profile also
+pins the connection-manager namespace `steamserver.net` DIRECT with local DNS.
+ProxyLens does not generate separate Carton artifacts per OS or inbound mode;
+the domain rule therefore also appears on Linux desktop, where it safely
+overlaps the TUN process rule, while Android/SFA remains unchanged. The CM
 session decides the effective cell and ships the content-server directory, and
 its egress must observe the local network. Store and community traffic lives in
 other namespaces and stays proxied. Carton rewrites ProxyOverride from its own
