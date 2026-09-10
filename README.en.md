@@ -40,6 +40,11 @@ desktop GUI for Windows and Linux and is not affiliated with the sing-box
 project. ProxyLens uses the client's User-Agent to return the matching profile,
 so both clients can use the same subscription URL.
 
+Android profiles exclude KDE Connect (`org.kde.kdeconnect_tp`) from the VPN TUN.
+Its LAN UDP discovery and TCP/UDP peer ports 1714–1764 therefore stay on the
+phone's physical Wi-Fi/LAN interface, while other Android traffic remains
+handled by the subscription rules.
+
 ## OpenWrt quick start
 
 The public signing key must be trusted once before the first installation.

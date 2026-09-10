@@ -112,7 +112,10 @@ system-proxy path has no process metadata, so every desktop Carton profile also
 pins the connection-manager namespace `steamserver.net` DIRECT with local DNS.
 ProxyLens does not generate separate Carton artifacts per OS or inbound mode;
 the domain rule therefore also appears on Linux desktop, where it safely
-overlaps the TUN process rule, while Android/SFA remains unchanged. The CM
+overlaps the TUN process rule. Android/SFA additionally excludes the KDE Connect
+package (`org.kde.kdeconnect_tp`) from its VpnService TUN so local UDP discovery
+and TCP/UDP peer traffic remain on the physical LAN interface; Android does not
+receive the Linux IP rule-set exclusion. The CM
 session decides the effective cell and ships the content-server directory, and
 its egress must observe the local network. Store and community traffic lives in
 other namespaces and stays proxied. Carton rewrites ProxyOverride from its own

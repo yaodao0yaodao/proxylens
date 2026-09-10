@@ -448,6 +448,13 @@ func selector(tag string, out []string) map[string]any {
 
 func tunInbound(client Client) map[string]any {
 	m := map[string]any{"type": "tun", "tag": "tun-in", "address": []string{"172.19.0.1/30", "fdfe:dcba:9876::1/126"}, "mtu": 9000, "auto_route": true, "stack": "mixed"}
+	if client == SFA || client == SFA113 {
+		// KDE Connect relies on the phone's physical LAN interface for UDP
+		// broadcast discovery and its TCP/UDP 1714-1764 session. Bypassing the
+		// Android package keeps both discovery and peer traffic out of the
+		// VpnService TUN; a route rule alone cannot restore broadcast delivery.
+		m["exclude_package"] = []string{"org.kde.kdeconnect_tp"}
+	}
 	if carton(client) {
 		m["strict_route"] = true
 	}

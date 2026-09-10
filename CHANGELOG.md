@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Exclude the KDE Connect Android package (`org.kde.kdeconnect_tp`) from SFA's
+  VPN TUN so UDP broadcast discovery and TCP/UDP peer traffic on ports 1714–1764
+  continue to use the phone's local network while the rest of Android traffic
+  remains proxied.
 - For explicit Linux/CachyOS desktop subscriptions, exclude the maintained
   mainland IP rule-set from the sing-box TUN pre-routing path. Mainland IPv4
   and IPv6 now use the host's native route while foreign traffic remains in the

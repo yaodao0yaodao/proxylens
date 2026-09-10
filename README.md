@@ -37,6 +37,10 @@ SFA 是 sing-box 官方 Android 客户端。Carton 是适用于 Windows 和 Linu
 第三方 sing-box 图形客户端，不属于 sing-box 官方项目。ProxyLens 会根据
 客户端的 User-Agent 自动返回对应配置，两端使用同一条订阅地址即可。
 
+Android 配置会将 KDE Connect（包名 `org.kde.kdeconnect_tp`）排除在 VPN
+TUN 之外。这样它的局域网 UDP 广播发现及 TCP/UDP 1714–1764 端口仍走手机的
+Wi‑Fi/局域网接口；其余 Android 流量继续按订阅规则代理。
+
 ## OpenWrt 快速安装
 
 首次安装必须先让系统信任 ProxyLens 的公开签名公钥。以 root 身份执行：

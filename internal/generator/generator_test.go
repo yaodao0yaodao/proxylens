@@ -75,6 +75,27 @@ func TestGenerateHasNoNullOutboundsAndClientSpecificDownloadRule(t *testing.T) {
 	if e = json.Unmarshal(sfa.Content, &v); e != nil {
 		t.Fatal(e)
 	}
+	var sfaInbound map[string]any
+	for _, raw := range v["inbounds"].([]any) {
+		candidate, ok := raw.(map[string]any)
+		if ok && candidate["type"] == "tun" {
+			sfaInbound = candidate
+			break
+		}
+	}
+	if !containsString(sfaInbound["exclude_package"], "org.kde.kdeconnect_tp") {
+		t.Fatal("Android SFA must bypass KDE Connect so LAN discovery remains available")
+	}
+	var cartonConfig map[string]any
+	if e = json.Unmarshal(carton.Content, &cartonConfig); e != nil {
+		t.Fatal(e)
+	}
+	for _, raw := range cartonConfig["inbounds"].([]any) {
+		candidate, ok := raw.(map[string]any)
+		if ok && containsString(candidate["exclude_package"], "org.kde.kdeconnect_tp") {
+			t.Fatal("KDE Connect Android bypass must not be emitted in Carton profiles")
+		}
+	}
 	rules := v["route"].(map[string]any)["rules"].([]any)
 	positions := map[string]int{}
 	combinedCN := false
@@ -193,6 +214,15 @@ func anyStrings(value any) []string {
 		}
 	}
 	return out
+}
+
+func containsString(value any, want string) bool {
+	for _, item := range anyStrings(value) {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func assertSteamDepotLocalityRules(t *testing.T, config map[string]any) {
