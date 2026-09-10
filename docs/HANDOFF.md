@@ -1,7 +1,40 @@
-# ProxyLens 维护交接（2026-09-08）
+# ProxyLens 维护交接（2026-09-11）
 
 本文件供接手的开发者或智能体使用，无需阅读原始对话。先阅读根目录
 `AGENTS.md`，再阅读本文件、`architecture.md`、`runtime-events.md`。
+
+## 当前实况（2026-09-11，优先于下方历史记录）
+
+- GitHub `main` 和本地工作树当前都包含 KDE Connect 修复提交 `04a1411`
+  （其父提交 `59c9439` 是 Linux 原生 IPv6 TUN 修复）。本地 `main` 已推送到
+  `origin/main`，当前没有未提交改动。
+- 已核实的生产设备是 CMCC RAX3000M（ARMv8，`mediatek/filogic`），运行
+  ImmortalWrt 25.12.0，管理地址 `192.168.10.1`。核心服务由
+  `/etc/init.d/proxylens` 管理，程序为 `/usr/bin/proxylens`，运行时数据目录
+  为 `/var/lib/proxylens`。
+- 路由器当前程序版本为 `0.3.3-dev-android-kdeconnect`，ARM64 二进制
+  SHA256：
+  `090d5a7b17e782cca2b1170fc6b91815fae34a56814098f0b9a94085715a617a`。
+  当前健康检查为 `ok`。路由器内置 sing-box 为 1.14.0，路径是
+  `/usr/lib/proxylens/sing-box`。
+- 生产数据库不是默认路径，而是
+  `/mnt/mmcblk0p6/proxylens/database/proxylens.db`；当前 schema 为 v14。
+  同一分区还保存历史/运行备份，当前分区约 53.6 GiB 可用。最近一次 KDE
+  Connect 部署前的一致性数据库备份为
+  `/mnt/mmcblk0p6/proxylens/backups/proxylens-20260911-045945-before-android-kdeconnect.sqlite`，
+  旧二进制为同目录下的
+  `proxylens-20260911-050033-before-android-kdeconnect.bin`。
+- 订阅刷新和本机 Carton 重启由设备所有者手动执行；接手人不得为验证而擅自
+  重启本机代理。路由器 ProxyLens 服务重启属于部署步骤，可在替换二进制前后
+  按 `docs/MAINTENANCE.md` 执行。
+- 当前未发布新的正式 Release；GitHub 最新正式 Release 仍是 `v0.3.2`。
+  `main` 上的 0.3.3-dev 变更属于待发布内容，不能把路由器调试版本当作公开
+  安装包版本。
+
+近期功能提交顺序（从旧到新）为：`9ae0f8b` Linux Steam 下载区域、
+`61893f1` Windows 系统代理下的 Steam CM 域名、`a046130` 桌面规则边界说明、
+`59c9439` Linux TUN 大陆 IPv6 预路由绕过、`04a1411` Android KDE Connect
+包级绕过。排查回归时先按此顺序阅读提交差异，再查看当前生成器测试。
 
 ## 版本与交付边界
 
@@ -11,23 +44,25 @@
 - `c2e816a`：节点合并增加永久别名，数据库从 v13 升级 v14。
 - `337fefd`：订阅响应根据明确 Linux/CachyOS 桌面 UA 补充 auto_redirect。
 - 上两项尚未包含在 v0.3.2 Release 内，记录在 CHANGELOG 的 Unreleased。
-- 上次部署记录：用户路由器运行 `0.3.3-dev`，与 `337fefd` 对应的 ARM64
+- 历史部署记录：用户路由器曾运行 `0.3.3-dev`，与 `337fefd` 对应的 ARM64
   二进制 SHA256 为
   `a1098ad9e898c5a95fbc4716c0afb7f8dcf91fe11a9ac4095e2a6682b6bf5e19`。
   这是上次验收记录，不代表本次交接重新登录确认了设备状态。
 - 上次路由器 sing-box 为 1.14.0，数据库为 v14。不得用 v0.3.2 程序直接
   打开 v14 数据库回滚；回滚必须使用升级前的匹配数据库备份。
-- 2026-09-08 Steam 修复调试版在原路由器部署为 `0.3.3-dev-steam-fix`，
+- 2026-09-08 Steam 修复调试版曾在原路由器部署为 `0.3.3-dev-steam-fix`，
   ARM64 二进制 SHA256 为
   `6f6d8cd0edfb5cf3057a79fca8258e9ac05d347b7325dbf673be92896dbe667d`。
-  升级前已通过 `/api/backup` 保存一致性备份，旧二进制也保留在设备的
-  `/root/proxylens-backups/`。三个生产任务的 Linux Carton 1.14 配置均通过
+  升级前已通过 `/api/backup` 保存一致性备份，旧二进制也保留在当时设备的
+  备份目录（历史记录中的 `/root/proxylens-backups/`）。三个生产任务的 Linux
+  Carton 1.14 配置均通过
   路由器 sing-box 1.14.0 `check`；这仍不等同于 Steam 下载实机验收。
 - 同日将桌面 CM 域名修复部署为 `0.3.3-dev-steam-desktop-fix`（提交
   `61893f1`），ARM64 二进制 SHA256 为
   `421901fa6cb490acbc123f93ea18968a50dc10b36e92183256af24341bdf4da7`。
-  升级前一致性备份为
-  `/root/proxylens-backups/proxylens-20260908-100301-before-steam-desktop-fix.sqlite`，
+  升级前一致性备份记录为
+  `/root/proxylens-backups/proxylens-20260908-100301-before-steam-desktop-fix.sqlite`
+  （历史路径，不代表当前备份目录），
   同时间戳旧二进制也已保留。三个生产任务各自生成的 Windows Carton、Linux
   Carton 和 Android/SFA 配置（共 9 份）均通过路由器 sing-box 1.14.0
   `check`；桌面两类包含 `steamserver.net`，Android 不包含。
@@ -55,7 +90,7 @@
   和退出；所有辅助进程应无黑窗口。
 - sing-box 核心仅显示版本，不自动升级。
 
-## 两项近期修复的关键点
+## 近期修复的关键点
 
 节点手动合并曾被后续订阅撤销：源订阅继续提供旧的派生 ID，将已移除副本
 复活，历史质量留在另一节点。v14 的 `node_identity_aliases` 将副本永久指向
@@ -63,7 +98,8 @@
 一次历史。链式合并会压平映射。不要删除别名源行或重置国家序号。
 
 用户的一条日本 VLESS 节点已修复并实际更新订阅验收，规范节点保留 200/200
-检测，副本保持移除。此前备份在用户设备 `/root/proxylens-backups/` 中；具体
+检测，副本保持移除。历史备份位置以当时设备记录为准；当前备份位置见本文
+“当前实况”。具体
 节点、账号、地址由用户私下提供，不放入公开仓库。
 
 Linux 差异在 `web.enableLinuxAutoRedirect` 的响应阶段加入，数据库仍存四种
@@ -71,6 +107,12 @@ Linux 差异在 `web.enableLinuxAutoRedirect` 的响应阶段加入，数据库�
 `Vary: User-Agent`。例：`sing-box/1.14.0 Linux CachyOS`。未声明 OS 的 Carton
 无法凭空判断运行在 Linux；Android（常含 Linux）不启用。Windows 官方
 1.13.19/1.14.0 对开启该字段的 TUN 配置会报 invalid argument，不能全端添加。
+
+Android/SFA 的 TUN 入站额外包含 `exclude_package: ["org.kde.kdeconnect_tp"]`，
+用于让 KDE Connect 的 UDP 广播发现和 TCP/UDP 1714–1764 端口留在手机物理
+局域网接口。此包级绕过只出现在 SFA 1.13/1.14 配置，不影响 Windows 或 Linux
+Carton；SFA 图形界面的按应用设置可以覆盖配置文件中的包绕过，遇到发现失败时
+先检查 KDE Connect 是否被手动加入“代理应用”。
 
 ## 代码地图
 
