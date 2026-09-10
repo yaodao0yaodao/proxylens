@@ -5,9 +5,9 @@
 
 ## 当前实况（2026-09-11，优先于下方历史记录）
 
-- GitHub `main` 和本地工作树当前都在 `81dcbe8`，其中包含 KDE Connect 修复
-  提交 `04a1411`（其父提交 `59c9439` 是 Linux 原生 IPv6 TUN 修复）。本地
-  `main` 已推送到 `origin/main`，当前没有未提交改动。
+- GitHub `main` 和本地工作树均已同步，当前 `main` 包含 KDE Connect 修复提交
+  `04a1411`（其父提交 `59c9439` 是 Linux 原生 IPv6 TUN 修复）。本地 `main`
+  已推送到 `origin/main`，当前没有未提交改动。
 - 已核实的生产设备是 CMCC RAX3000M（ARMv8，`mediatek/filogic`），运行
   ImmortalWrt 25.12.0，管理地址 `192.168.10.1`。核心服务由
   `/etc/init.d/proxylens` 管理，程序为 `/usr/bin/proxylens`，运行时数据目录
