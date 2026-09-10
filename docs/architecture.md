@@ -98,8 +98,12 @@ Carton is stored as one dual-platform Windows/Linux artifact. Website, DNS,
 country and node-selection rules are identical, and application bypass rules
 include both `.exe` and Linux executable variants. At publication time an
 explicit desktop `Linux` or `CachyOS` User-Agent enables `auto_redirect` on the
-TUN inbound. Windows, Android, and unknown-platform requests retain the base
-artifact because Windows sing-box rejects Linux auto-redirect initialization.
+TUN inbound and excludes the maintained `geoip-cn` address set from TUN
+pre-routing. This lets mainland IPv4/IPv6 use the host's native route while
+foreign traffic remains in the TUN/proxy path. Windows, Android, and
+unknown-platform requests retain the base artifact because Windows sing-box
+rejects Linux auto-redirect initialization and the Android graphical client
+cannot handle large dynamic route-exclusion sets.
 The Linux `steam` and `steamcmd` processes are DIRECT so the native client's CM
 session, selected CellID, content-server directory, and depot traffic observe
 the local network. `steamwebhelper` is intentionally absent: its store and

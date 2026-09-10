@@ -84,8 +84,10 @@ Carton 在 Windows 和 Linux/CachyOS 上复用同一份基础配置，并在发�
 大流量下载程序使用 DIRECT；Google Play、Steam、DNS、节点和国家分流由
 ProxyLens 针对中国大陆网络进行组合与修正。
 
-Linux TUN 下，Steam 主进程直连以让连接管理器、下载区域 CellID 和内容服务器
-目录跟随本地网络；商店和社区使用的 `steamwebhelper` 仍走代理。桌面 Carton
+明确识别为 Linux/CachyOS 的 Linux TUN 订阅会将 `geoip-cn` 地址从 sing-box
+预路由中排除，让大陆 IPv4/IPv6 使用主机原生路由；境外流量仍走 TUN/代理。
+Steam 主进程直连以让连接管理器、下载区域 CellID 和内容服务器目录跟随本地网络；
+商店和社区使用的 `steamwebhelper` 仍走代理。桌面 Carton
 配置还统一将 Steam 连接管理器域名 `steamserver.net` 指定直连并使用本地 DNS，
 用于覆盖 Windows 系统代理入站没有进程信息的场景。该域名规则也会出现在 Linux
 桌面配置中，与 TUN 下的进程规则重叠但不冲突；Android/SFA 不生成此规则。

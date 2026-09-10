@@ -48,6 +48,13 @@ func TestLinuxDesktopSubscriptionEnablesAutoRedirect(t *testing.T) {
 			if enabled != tc.want {
 				t.Fatalf("auto_redirect=%v want %v: %s", enabled, tc.want, got)
 			}
+			excluded, _ := config.Inbounds[0]["route_exclude_address_set"].([]any)
+			if tc.want && (len(excluded) != 1 || excluded[0] != "geoip-cn") {
+				t.Fatalf("Linux profile must exclude geoip-cn from the TUN: %#v", config.Inbounds[0]["route_exclude_address_set"])
+			}
+			if !tc.want && config.Inbounds[0]["route_exclude_address_set"] != nil {
+				t.Fatalf("non-Linux profile unexpectedly received route exclusion: %#v", config.Inbounds[0]["route_exclude_address_set"])
+			}
 		})
 	}
 }

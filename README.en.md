@@ -94,10 +94,13 @@ Linux UA adjustments applied when serving the subscription. Large download
 applications use DIRECT in desktop TUN mode. ProxyLens combines and adjusts
 Google Play, Steam, DNS, node, and country routing for mainland China networks.
 
-In Linux TUN mode, the native Steam process uses DIRECT so its connection
-manager, download-region CellID, and content-server directory follow the local
-network.  The `steamwebhelper` process used by the store and community remains
-proxied.  Desktop Carton profiles also pin the Steam connection-manager
+For subscriptions explicitly identifying Linux/CachyOS, Linux TUN excludes the
+`geoip-cn` address set from TUN pre-routing so mainland IPv4/IPv6 uses the host's
+native route while foreign traffic remains in the TUN/proxy path. In Linux TUN
+mode, the native Steam process uses DIRECT so its connection manager,
+download-region CellID, and content-server directory follow the local network.
+The `steamwebhelper` process used by the store and community remains proxied.
+Desktop Carton profiles also pin the Steam connection-manager
 namespace `steamserver.net` DIRECT with local DNS to cover Windows system-proxy
 inbounds, which have no process metadata.  The same domain rule is present in
 Linux desktop profiles, where it safely overlaps the TUN process rule; Android/SFA

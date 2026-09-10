@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- For explicit Linux/CachyOS desktop subscriptions, exclude the maintained
+  mainland IP rule-set from the sing-box TUN pre-routing path. Mainland IPv4
+  and IPv6 now use the host's native route while foreign traffic remains in the
+  TUN/proxy path, fixing native IPv6 HTTPS stalls without disabling IPv6.
 - Keep the Linux Steam client process DIRECT in TUN mode so its CM session,
   download-region CellID, and content-server directory use the local network;
   keep `steamwebhelper` store/community traffic proxied.

@@ -507,8 +507,8 @@ func routingCustomizations() []map[string]string {
 		{"name": "Steam", "scope": "桌面端", "based_on": "MetaCubeX Steam 与游戏平台下载，ProxyLens Linux 进程与 Windows 会话修正", "behavior": "Linux 的 Steam 主进程直连以保持 CM、CellID 与下载目录的本地性，steamwebhelper 商店/社区继续代理；桌面配置将 CM 域名 steamserver.net 固定直连并用本地 DNS，覆盖 Windows 系统代理入站无进程信息的场景；steamcontent.com 和游戏下载域名直连并使用本地 DNS。"},
 		{"name": "Microsoft Store 与 Windows Update", "scope": "桌面端", "based_on": "Microsoft 官方必需端点，ProxyLens 修正", "behavior": "商店区域/下载位置接口、安装包 CDN、Delivery Optimization 和 Windows Update 直连并使用本地 DNS；账号登录、购买、授权、商品目录及其他商店服务继续代理。"},
 		{"name": "TUN 本地下载应用", "scope": "Carton、原生 sing-box Windows/Linux", "based_on": "内置跨平台进程名 + blackmatrix7/ios_rule_script Download.list", "behavior": "TUN 模式下，迅雷、qBittorrent、aria2、Transmission、µTorrent、BitComet、FDM、WebTorrent 等本地下载程序按进程直连。Android 不应用进程名规则。"},
-		{"name": "TUN 与局域网代理入站", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "始终生成 IPv4/IPv6 TUN；桌面配置启用 strict_route，明确的 Linux/CachyOS UA 额外启用 auto_redirect。按全局或任务设置生成可选 mixed 局域网代理入站、监听端口和账号认证。"},
-		{"name": "DNS 分流", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "国内/私有/下载 CDN 使用本地 DNS，境外与代理业务使用远程 DNS；优先 IPv4，避免错误 IPv6 路径影响体验。"},
+		{"name": "TUN 与局域网代理入站", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "始终生成 IPv4/IPv6 TUN；桌面配置启用 strict_route，明确的 Linux/CachyOS UA 额外启用 auto_redirect，并将 geoip-cn 从 Linux TUN 预路由排除，让大陆 IPv4/IPv6 使用主机原生路由。按全局或任务设置生成可选 mixed 局域网代理入站、监听端口和账号认证。"},
+		{"name": "DNS 分流", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "国内/私有/下载 CDN 使用本地 DNS，境外与代理业务使用远程 DNS；优先 IPv4，但不关闭 IPv6，Linux 大陆地址由 TUN 预路由排除后使用原生 IPv6。"},
 		{"name": "订阅自访问防回环", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "ProxyLens 公网/DDNS 订阅域名直连并用本地 DNS；局域网访问订阅时自动改写为路由器局域网规则地址。"},
 		{"name": "规则启动与缓存", "scope": "全端", "based_on": "MetaCubeX 原版 SRS，由 ProxyLens 缓存/转发", "behavior": "避免 raw.githubusercontent.com 在大陆网络被错误解析；1.13 使用 DIRECT download_detour，1.14+ 使用显式 HTTP Client，防止首次启动死循环。"},
 		{"name": "节点分组与质量选择", "scope": "全端", "based_on": "ProxyLens 自定义", "behavior": "生成代理选择、普通/中费/高费/随便用/全部节点、自动选择、日本自动选择及提示组；按出口国家、倍率、可用率与延迟动态更新。"},
@@ -685,6 +685,13 @@ func enableLinuxAutoRedirect(content []byte, kind, ua string) ([]byte, error) {
 		}
 		inbound["auto_route"] = true
 		inbound["auto_redirect"] = true
+		// Linux can bypass the TUN for mainland IPs while retaining the
+		// TUN/proxy path for foreign traffic.  This is important for native
+		// IPv6: the LAN's delegated prefix is healthy, but sending a direct
+		// mainland IPv6 TCP flow through the TUN's DIRECT path can stall before
+		// TLS completes.  sing-box documents geoip rule-set exclusions for
+		// auto_redirect; Windows and Android do not receive this field.
+		inbound["route_exclude_address_set"] = []string{"geoip-cn"}
 		changed = true
 	}
 	if !changed {
